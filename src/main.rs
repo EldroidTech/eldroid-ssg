@@ -1,54 +1,11 @@
-use std::fs;
+use eldroid_ssg::seo::{load_seo_config};
+use eldroid_ssg::html::generate_html_with_seo;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use serde::Deserialize;
-use rayon::prelude::*; // Import Rayon prelude for parallel iterators
-
-#[derive(Deserialize)]
-struct SEOConfig {
-    enable_seo: bool,
-    default_title: Option<String>,
-    default_description: Option<String>,
-    meta_tags: HashMap<String, String>,
-}
-
-fn load_seo_config(config_path: &str) -> Option<SEOConfig> {
-    if let Ok(config_content) = fs::read_to_string(config_path) {
-        toml::from_str(&config_content).ok()
-    } else {
-        None
-    }
-}
-
-fn generate_html(content: &str, _components_dir: &str, _cache: &mut HashMap<String, String>, _visited: &mut HashSet<String>) -> String {
-    // Placeholder implementation for generate_html
-    content.to_string()
-}
-
-fn generate_html_with_seo(content: &str, components_dir: &str, cache: &mut HashMap<String, String>, visited: &mut HashSet<String>, seo_config: &Option<SEOConfig>) -> String {
-    let mut output = generate_html(content, components_dir, cache, visited);
-
-    if let Some(config) = seo_config {
-        if config.enable_seo {
-            let title = config.default_title.clone().unwrap_or_else(|| "Default Title".to_string());
-            let description = config.default_description.clone().unwrap_or_else(|| "Default Description".to_string());
-
-            let mut meta_tags = String::new();
-            for (key, value) in &config.meta_tags {
-                meta_tags.push_str(&format!("<meta name=\"{}\" content=\"{}\">\n", key, value));
-            }
-
-            output = format!(
-                "<html><head><title>{}</title><meta name=\"description\" content=\"{}\">\n{}\n</head><body>{}</body></html>",
-                title, description, meta_tags, output
-            );
-        }
-    }
-
-    output
-}
+use rayon::prelude::*;
 
 fn main() {
     let input_dir = "content";
@@ -73,7 +30,7 @@ fn main() {
 
             entries.into_par_iter().for_each(|entry| {
                 let path = entry.path();
-                let cache = Arc::clone(&cache); // Clone the Arc for thread-safe access
+                let cache = Arc::clone(&cache);
 
                 if path.is_file() {
                     match fs::read_to_string(&path) {
