@@ -66,12 +66,14 @@ fn main() {
     let html_gen = Arc::new(HtmlGenerator::new());
     let processed_files = Arc::new(Mutex::new(Vec::new()));
 
-    let walk_dir = |dir: &Path| -> Vec<_> {
+    let walk_dir_recursive = |dir: &Path| -> Vec<std::path::PathBuf> {
         let mut files = Vec::new();
         if let Ok(entries) = fs::read_dir(dir) {
             for entry in entries.filter_map(Result::ok) {
                 let path = entry.path();
-                if path.is_file() && path.extension().map_or(false, |ext| ext == "html") {
+                if path.is_dir() {
+                    files.extend(walk_dir_recursive(&path));
+                } else if path.is_file() && path.extension().map_or(false, |ext| ext == "html") {
                     files.push(path);
                 }
             }
@@ -79,7 +81,7 @@ fn main() {
         files
     };
 
-    let content_files = walk_dir(Path::new(&args.input_dir));
+    let content_files = walk_dir_recursive(Path::new(&args.input_dir));
     
     content_files.par_iter().for_each(|file_path| {
         if let Ok(content) = fs::read_to_string(file_path) {
