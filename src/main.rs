@@ -1,7 +1,6 @@
 use eldroid_ssg::seo::load_seo_config;
 use eldroid_ssg::html::{generate_html_with_seo, HtmlGenerator};
 use eldroid_ssg::seo_gen::{generate_sitemap, generate_rss, generate_robots_txt};
-use eldroid_ssg::analyzer::Analyzer;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -17,7 +16,9 @@ fn main() {
     let output_dir = "output";
     let components_dir = "components";
     let seo_config_path = "seo_config.toml";
+    let perf_dir = format!("{}/performance", output_dir);
 
+    // Load SEO config
     let seo_config = match load_seo_config(seo_config_path) {
         Some(config) => {
             info!("SEO configuration loaded successfully from {}", seo_config_path);
@@ -29,19 +30,21 @@ fn main() {
         }
     };
 
-    if !Path::new(output_dir).exists() {
-        if let Err(err) = fs::create_dir(output_dir) {
-            error!("Error creating output directory: {}", err);
-            process::exit(1);
+    // Ensure output directories exist
+    for dir in [output_dir, &perf_dir] {
+        if !Path::new(dir).exists() {
+            if let Err(err) = fs::create_dir_all(dir) {
+                error!("Error creating directory '{}': {}", dir, err);
+                process::exit(1);
+            }
         }
     }
 
-    // Create a thread-safe HtmlGenerator and Analyzer
+    // Create thread-safe components
     let generator = Arc::new(Mutex::new(HtmlGenerator::new()));
-    let analyzer = Arc::new(Analyzer::new(output_dir.to_string()));
     let processed_pages = Arc::new(Mutex::new(Vec::new()));
 
-    // Process files in parallel chunks for better performance
+    // Process files in parallel chunks
     match fs::read_dir(input_dir) {
         Ok(entries) => {
             let entries: Vec<_> = entries
@@ -49,41 +52,56 @@ fn main() {
                 .filter(|e| e.path().is_file())
                 .collect();
 
-            // Process files in chunks to balance parallelism and resource usage
             entries.par_chunks(4).for_each(|chunk| {
                 for entry in chunk {
                     let path = entry.path();
                     let generator = Arc::clone(&generator);
-                    let analyzer = Arc::clone(&analyzer);
                     let processed_pages = Arc::clone(&processed_pages);
 
                     match fs::read_to_string(&path) {
                         Ok(content) => {
-                            let output_content = {
-                                let mut generator = generator.lock();
-                                generate_html_with_seo(
-                                    &content,
-                                    components_dir,
-                                    &mut generator,
-                                    &seo_config
-                                )
-                            };
-
-                            // Analyze the generated HTML
-                            let analysis = analyzer.analyze_page(&output_content, &path);
+                            let mut generator = generator.lock();
                             
-                            // Log performance recommendations
-                            if !analysis.recommendations.is_empty() {
-                                info!("Performance recommendations for {}", path.display());
-                                for recommendation in &analysis.recommendations {
-                                    info!("- {}", recommendation);
-                                }
-                            }
+                            // Generate HTML with components
+                            let output_content = generate_html_with_seo(
+                                &content,
+                                components_dir,
+                                &mut generator,
+                                &seo_config
+                            );
+
+                            // Generate performance report
+                            let perf_report = generator.generate_perf_report(
+                                &output_content,
+                                &path,
+                                output_dir
+                            );
 
                             let rel_path = path.strip_prefix(input_dir)
                                 .unwrap_or(&path)
                                 .to_string_lossy()
                                 .into_owned();
+
+                            // Save performance report
+                            let report_path = Path::new(&perf_dir)
+                                .join(format!("{}.perf.txt", path.file_stem().unwrap().to_string_lossy()));
+                            
+                            let report_content = format!(
+                                "Performance Report for {}\n{}\n\nDetails:\n{}\n\nRecommendations:\n{}\n",
+                                rel_path,
+                                "=".repeat(rel_path.len() + 19),
+                                perf_report.details,
+                                perf_report.recommendations.join("\n")
+                            );
+
+                            if let Err(err) = fs::write(&report_path, report_content) {
+                                error!("Error writing performance report '{}': {}", report_path.display(), err);
+                            } else {
+                                info!("Generated performance report: {}", report_path.display());
+                            }
+
+                            // Store report for site summary
+                            generator.performance_reports.push((rel_path.clone(), perf_report));
 
                             // Extract PageSEO for sitemap/RSS
                             if let Some(config) = &seo_config {
@@ -94,6 +112,7 @@ fn main() {
                                 }
                             }
 
+                            // Write generated HTML
                             let output_path = Path::new(output_dir).join(path.file_name().unwrap());
                             if let Err(err) = fs::write(&output_path, output_content) {
                                 error!("Error writing output file '{}': {}", output_path.display(), err);
@@ -108,7 +127,18 @@ fn main() {
                 }
             });
 
-            // Generate sitemap, RSS feed, and robots.txt after processing all files
+            // Generate site-wide reports
+            let generator = generator.lock();
+            let site_summary = generator.generate_site_summary();
+            let summary_path = Path::new(&perf_dir).join("site_summary.txt");
+            
+            if let Err(err) = fs::write(&summary_path, site_summary) {
+                error!("Error writing site summary: {}", err);
+            } else {
+                info!("Generated site performance summary: {}", summary_path.display());
+            }
+
+            // Generate SEO files
             if let Some(config) = &seo_config {
                 if config.enable_seo {
                     if let Some(base_url) = &config.base_url {

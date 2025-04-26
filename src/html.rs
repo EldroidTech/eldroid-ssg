@@ -1,9 +1,18 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use crate::analyzer::Analyzer;
 use log::{error, debug};
 use once_cell::sync::Lazy;
 use regex::Regex;
+
+#[derive(Debug, Clone)]
+pub struct PagePerformanceReport {
+    pub path: String,
+    pub score: f32,
+    pub recommendations: Vec<String>,
+    pub details: String,
+}
 
 // Compile regex pattern once
 static COMPONENT_TAG_REGEX: Lazy<Regex> = Lazy::new(|| {
@@ -11,21 +20,21 @@ static COMPONENT_TAG_REGEX: Lazy<Regex> = Lazy::new(|| {
 });
 
 // Cache for component file paths to avoid repeated filesystem searches
-type ComponentPathCache = HashMap<String, Option<PathBuf>>;
+type ComponentPathCache = HashMap<String, Option<String>>;
 
 fn normalize_component_name(name: &str) -> String {
     name.replace('\\', "/")
 }
 
-fn resolve_component_path(base_dir: &Path, current_component_dir: Option<&Path>, component_name: &str) -> PathBuf {
+fn resolve_component_path(base_dir: &Path, current_component_dir: Option<&Path>, component_name: &str) -> String {
     let normalized_name = normalize_component_name(component_name);
     
     if normalized_name.starts_with('/') {
-        Path::new(base_dir).join(&normalized_name[1..])
+        format!("{}/{}", base_dir.display(), &normalized_name[1..])
     } else if let Some(current_dir) = current_component_dir {
-        current_dir.join(&normalized_name)
+        format!("{}/{}", current_dir.display(), &normalized_name)
     } else {
-        Path::new(base_dir).join(normalized_name)
+        format!("{}/{}", base_dir.display(), normalized_name)
     }
 }
 
@@ -34,7 +43,7 @@ fn find_component_file(
     current_component_dir: Option<&Path>,
     component_name: &str,
     path_cache: &mut ComponentPathCache,
-) -> Option<PathBuf> {
+) -> Option<String> {
     let cache_key = match current_component_dir {
         Some(dir) => format!("{}:{}", dir.display(), component_name),
         None => component_name.to_string(),
@@ -50,8 +59,8 @@ fn find_component_file(
         component_name
     );
 
-    let with_extension = component_path.with_extension("html");
-    if with_extension.exists() {
+    let with_extension = format!("{}.html", component_path);
+    if Path::new(&with_extension).exists() {
         path_cache.insert(cache_key, Some(with_extension.clone()));
         return Some(with_extension);
     }
@@ -67,7 +76,7 @@ fn find_component_file(
     for entry in walker {
         if let Some(file_name) = entry.path().file_stem() {
             if file_name.to_string_lossy().eq_ignore_ascii_case(component_name) {
-                let path = entry.path().to_path_buf();
+                let path = entry.path().to_string_lossy().into_owned();
                 path_cache.insert(cache_key, Some(path.clone()));
                 return Some(path);
             }
@@ -78,59 +87,108 @@ fn find_component_file(
     None
 }
 
-fn get_component_dir(path: &Path) -> Option<PathBuf> {
-    path.parent().map(|p| p.to_path_buf())
+fn get_component_dir(path: &Path) -> Option<String> {
+    path.parent().map(|p| p.to_string_lossy().into_owned())
 }
 
 #[derive(Default)]
 pub struct HtmlGenerator {
+    pub performance_reports: Vec<(String, PagePerformanceReport)>,
     content_cache: HashMap<String, String>,
-    path_cache: ComponentPathCache,
+    path_cache: HashMap<String, Option<String>>,
 }
 
 impl HtmlGenerator {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            performance_reports: Vec::new(),
+            content_cache: HashMap::new(),
+            path_cache: HashMap::new(),
+        }
+    }
+
+    pub fn generate_perf_report(&mut self, content: &str, path: &Path, base_path: &str) -> PagePerformanceReport {
+        let analyzer = Analyzer::new(base_path.to_string());
+        let analysis = analyzer.analyze_page(content, path);
+        
+        let details = format!(
+            "Page Size: {:.2}KB\n\
+             Images: {} total ({} large, {} unoptimized)\n\
+             Scripts: {} blocking\n\
+             CSS: {} render-blocking\n\
+             Security: {} mixed content issues\n\
+             Accessibility: {} issues",
+            analysis.page_size_bytes as f32 / 1024.0,
+            analysis.image_count,
+            analysis.large_images.len(),
+            analysis.unoptimized_images.len(),
+            analysis.blocking_scripts,
+            analysis.render_blocking_css,
+            analysis.mixed_content_urls.len(),
+            analysis.a11y_issues.len()
+        );
+
+        PagePerformanceReport {
+            path: path.to_string_lossy().into_owned(),
+            score: analysis.perf_score,
+            recommendations: analysis.recommendations,
+            details,
+        }
+    }
+
+    pub fn generate_site_summary(&self) -> String {
+        if self.performance_reports.is_empty() {
+            return "No pages analyzed.".to_string();
+        }
+
+        let total_score: f32 = self.performance_reports.iter()
+            .map(|(_, report)| report.score)
+            .sum();
+        let avg_score = total_score / self.performance_reports.len() as f32;
+
+        let mut critical_pages: Vec<(&str, f32)> = self.performance_reports.iter()
+            .filter(|(_, report)| report.score < 70.0)
+            .map(|(path, report)| (path.as_str(), report.score))
+            .collect();
+        critical_pages.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+
+        let mut summary = format!("\nSite Performance Summary\n=====================\n");
+        summary.push_str(&format!("Average Performance Score: {:.1}%\n", avg_score));
+        summary.push_str(&format!("Pages Analyzed: {}\n\n", self.performance_reports.len()));
+
+        if !critical_pages.is_empty() {
+            summary.push_str("Pages Needing Immediate Attention:\n");
+            for (path, score) in critical_pages {
+                summary.push_str(&format!("- {} (Score: {:.1}%)\n", path, score));
+            }
+        }
+
+        summary
     }
 
     pub fn generate_html(
         &mut self,
-        content: &str, 
-        components_dir: &str, 
+        content: &str,
+        components_dir: &str,
         visited: &mut HashSet<String>,
         current_component_dir: Option<&Path>
     ) -> String {
-        let mut result = String::with_capacity(content.len());
-        let mut remaining_content = content;
+        let mut result = content.to_string();
+        while let Some(cap) = COMPONENT_TAG_REGEX.captures(&result.clone()) {
+            let full_match = cap[0].to_string();
+            let component_name = &cap[1];
 
-        while let Some(captures) = COMPONENT_TAG_REGEX.captures(remaining_content) {
-            let full_tag = captures.get(0).unwrap();
-            let component_name = captures.get(1).unwrap().as_str();
-            let normalized_name = normalize_component_name(component_name);
-
-            debug!("Processing component: {}", normalized_name);
-
-            result.push_str(&remaining_content[..full_tag.start()]);
-
-            if visited.contains(&normalized_name) {
-                error!("Circular dependency detected for component: {}", normalized_name);
-                result.push_str(&format!("<!-- Circular dependency detected: {} -->", normalized_name));
-            } else {
-                visited.insert(normalized_name.clone());
-                let component_content = self.load_component(
-                    &normalized_name,
-                    components_dir,
-                    current_component_dir,
-                    visited
-                );
-                result.push_str(&component_content);
-                visited.remove(&normalized_name);
+            // Prevent infinite recursion
+            if visited.contains(component_name) {
+                error!("Circular component dependency detected: {}", component_name);
+                result = result.replace(&full_match, &format!("<!-- Circular dependency: {} -->", component_name));
+                continue;
             }
+            visited.insert(component_name.to_string());
 
-            remaining_content = &remaining_content[full_tag.end()..];
+            let component_content = self.load_component(component_name, components_dir, current_component_dir, visited);
+            result = result.replace(&full_match, &component_content);
         }
-
-        result.push_str(remaining_content);
         result
     }
 
@@ -150,14 +208,14 @@ impl HtmlGenerator {
             Some(component_path) => {
                 match fs::read_to_string(&component_path) {
                     Ok(content) => {
-                        debug!("Loaded component from file: {}", component_path.display());
-                        let component_dir = get_component_dir(&component_path);
-                        let rendered = self.generate_html(&content, components_dir, visited, component_dir.as_deref());
+                        debug!("Loaded component from file: {}", &component_path);
+                        let component_dir = Path::new(&component_path).parent();
+                        let rendered = self.generate_html(&content, components_dir, visited, component_dir);
                         self.content_cache.insert(component_name.to_string(), rendered.clone());
                         rendered
                     }
                     Err(err) => {
-                        error!("Failed to read component file '{}': {}", component_path.display(), err);
+                        error!("Failed to read component file '{}': {}", &component_path, err);
                         format!("<!-- Failed to read component: {} -->", component_name)
                     }
                 }
