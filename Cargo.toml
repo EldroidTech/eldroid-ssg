@@ -14,3 +14,6 @@ walkdir = "2.5.0"
 once_cell = "1.21.3"
 parking_lot = "0.12.3"
 serde_json = "1.0.140"
+chrono = { version = "0.4", features = ["serde"] }
+sitemap = "0.4"
+rss = "2.0"
