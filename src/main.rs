@@ -1,6 +1,7 @@
 use eldroid_ssg::seo::load_seo_config;
 use eldroid_ssg::html::{generate_html_with_seo, HtmlGenerator};
 use eldroid_ssg::seo_gen::{generate_sitemap, generate_rss, generate_robots_txt};
+use eldroid_ssg::analyzer::Analyzer;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -35,9 +36,9 @@ fn main() {
         }
     }
 
-    // Create a thread-safe HtmlGenerator
+    // Create a thread-safe HtmlGenerator and Analyzer
     let generator = Arc::new(Mutex::new(HtmlGenerator::new()));
-    // Store processed pages for sitemap and RSS generation
+    let analyzer = Arc::new(Analyzer::new(output_dir.to_string()));
     let processed_pages = Arc::new(Mutex::new(Vec::new()));
 
     // Process files in parallel chunks for better performance
@@ -53,6 +54,7 @@ fn main() {
                 for entry in chunk {
                     let path = entry.path();
                     let generator = Arc::clone(&generator);
+                    let analyzer = Arc::clone(&analyzer);
                     let processed_pages = Arc::clone(&processed_pages);
 
                     match fs::read_to_string(&path) {
@@ -66,6 +68,17 @@ fn main() {
                                     &seo_config
                                 )
                             };
+
+                            // Analyze the generated HTML
+                            let analysis = analyzer.analyze_page(&output_content, &path);
+                            
+                            // Log performance recommendations
+                            if !analysis.recommendations.is_empty() {
+                                info!("Performance recommendations for {}", path.display());
+                                for recommendation in &analysis.recommendations {
+                                    info!("- {}", recommendation);
+                                }
+                            }
 
                             let rel_path = path.strip_prefix(input_dir)
                                 .unwrap_or(&path)
