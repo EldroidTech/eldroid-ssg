@@ -1,9 +1,9 @@
 use eldroid_ssg::seo::load_seo_config;
-use eldroid_ssg::html::generate_html_with_seo;
-use std::collections::{HashMap, HashSet};
+use eldroid_ssg::html::{generate_html_with_seo, HtmlGenerator};
 use std::fs;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use parking_lot::Mutex;
 use rayon::prelude::*;
 use log::{error, info};
 use std::process;
@@ -34,22 +34,33 @@ fn main() {
         }
     }
 
-    let cache = Arc::new(Mutex::new(HashMap::new()));
+    // Create a thread-safe HtmlGenerator
+    let generator = Arc::new(Mutex::new(HtmlGenerator::new()));
 
+    // Process files in parallel chunks for better performance
     match fs::read_dir(input_dir) {
         Ok(entries) => {
-            let entries: Vec<_> = entries.filter_map(Result::ok).collect();
+            let entries: Vec<_> = entries
+                .filter_map(Result::ok)
+                .filter(|e| e.path().is_file())
+                .collect();
 
-            entries.into_par_iter().for_each(|entry| {
-                let path = entry.path();
-                let cache = Arc::clone(&cache);
+            // Process files in chunks to balance parallelism and resource usage
+            entries.par_chunks(4).for_each(|chunk| {
+                for entry in chunk {
+                    let path = entry.path();
+                    let generator = Arc::clone(&generator);
 
-                if path.is_file() {
                     match fs::read_to_string(&path) {
                         Ok(content) => {
                             let output_content = {
-                                let mut cache_lock = cache.lock().expect("Failed to lock cache");
-                                generate_html_with_seo(&content, components_dir, &mut cache_lock, &mut HashSet::new(), &seo_config)
+                                let mut generator = generator.lock();
+                                generate_html_with_seo(
+                                    &content,
+                                    components_dir,
+                                    &mut generator,
+                                    &seo_config
+                                )
                             };
 
                             let output_path = Path::new(output_dir).join(path.file_name().unwrap());
