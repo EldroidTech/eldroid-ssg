@@ -181,17 +181,113 @@ pub fn generate_html_with_seo(
 
     if let Some(config) = seo_config {
         if config.enable_seo {
-            let title = config.default_title.as_deref().unwrap_or("Default Title");
-            let description = config.default_description.as_deref().unwrap_or("Default Description");
+            let page_seo = crate::seo::parse_page_seo(&output);
+            let merged_seo = config.merge_with_page(page_seo.as_ref());
+            
+            let mut head_tags = String::with_capacity(1024);
 
-            let meta_tags: String = config.meta_tags
-                .iter()
-                .map(|(key, value)| format!("<meta name=\"{}\" content=\"{}\">\n", key, value))
-                .collect();
+            // Title
+            if let Some(title) = &merged_seo.title {
+                head_tags.push_str(&format!("<title>{}</title>\n", title));
+            }
+
+            // Basic meta tags
+            if let Some(desc) = &merged_seo.description {
+                head_tags.push_str(&format!("<meta name=\"description\" content=\"{}\">\n", desc));
+            }
+
+            // Language
+            if let Some(lang) = &config.default_language {
+                head_tags.push_str(&format!("<meta http-equiv=\"content-language\" content=\"{}\">\n", lang));
+            }
+
+            // Alternate languages
+            if let Some(alternates) = &config.alternate_languages {
+                for (lang, url) in alternates {
+                    head_tags.push_str(&format!(
+                        "<link rel=\"alternate\" hreflang=\"{}\" href=\"{}\">\n",
+                        lang, url
+                    ));
+                }
+            }
+
+            // Canonical URL
+            if let Some(canonical) = &merged_seo.canonical_url {
+                head_tags.push_str(&format!("<link rel=\"canonical\" href=\"{}\">\n", canonical));
+            }
+
+            // Robots meta
+            if let Some(robots) = &merged_seo.robots {
+                let mut directives = Vec::new();
+                directives.push(if robots.index { "index" } else { "noindex" });
+                directives.push(if robots.follow { "follow" } else { "nofollow" });
+                if !robots.archive { directives.push("noarchive"); }
+                if !robots.imageindex { directives.push("noimageindex"); }
+                head_tags.push_str(&format!("<meta name=\"robots\" content=\"{}\">\n", directives.join(", ")));
+            }
+
+            // Custom meta tags
+            if let Some(meta_tags) = &merged_seo.meta_tags {
+                for (key, value) in meta_tags {
+                    head_tags.push_str(&format!("<meta name=\"{}\" content=\"{}\">\n", key, value));
+                }
+            }
+
+            // Open Graph tags
+            if let Some(og) = &merged_seo.open_graph {
+                if let Some(title) = &og.title {
+                    head_tags.push_str(&format!("<meta property=\"og:title\" content=\"{}\">\n", title));
+                }
+                if let Some(desc) = &og.description {
+                    head_tags.push_str(&format!("<meta property=\"og:description\" content=\"{}\">\n", desc));
+                }
+                if let Some(image) = &og.image {
+                    head_tags.push_str(&format!("<meta property=\"og:image\" content=\"{}\">\n", image));
+                }
+                if let Some(url) = &og.url {
+                    head_tags.push_str(&format!("<meta property=\"og:url\" content=\"{}\">\n", url));
+                }
+                if let Some(site_name) = &og.site_name {
+                    head_tags.push_str(&format!("<meta property=\"og:site_name\" content=\"{}\">\n", site_name));
+                }
+                if let Some(locale) = &og.locale {
+                    head_tags.push_str(&format!("<meta property=\"og:locale\" content=\"{}\">\n", locale));
+                }
+                if let Some(og_type) = &og.og_type {
+                    head_tags.push_str(&format!("<meta property=\"og:type\" content=\"{}\">\n", og_type));
+                }
+            }
+
+            // Twitter Card tags
+            if let Some(twitter) = &merged_seo.twitter_card {
+                head_tags.push_str(&format!("<meta name=\"twitter:card\" content=\"{}\">\n", twitter.card_type));
+                if let Some(site) = &twitter.site {
+                    head_tags.push_str(&format!("<meta name=\"twitter:site\" content=\"{}\">\n", site));
+                }
+                if let Some(creator) = &twitter.creator {
+                    head_tags.push_str(&format!("<meta name=\"twitter:creator\" content=\"{}\">\n", creator));
+                }
+                if let Some(image) = &twitter.image {
+                    head_tags.push_str(&format!("<meta name=\"twitter:image\" content=\"{}\">\n", image));
+                }
+            }
+
+            // JSON-LD structured data
+            if let Some(json_ld_items) = &merged_seo.json_ld {
+                for json_ld in json_ld_items {
+                    let mut schema = json_ld.properties.clone();
+                    schema.insert("@type".to_string(), serde_json::Value::String(json_ld.schema_type.clone()));
+                    schema.insert("@context".to_string(), serde_json::Value::String("https://schema.org".to_string()));
+                    
+                    head_tags.push_str("<script type=\"application/ld+json\">\n");
+                    head_tags.push_str(&serde_json::to_string_pretty(&schema).unwrap_or_default());
+                    head_tags.push_str("\n</script>\n");
+                }
+            }
 
             output = format!(
-                "<html><head><title>{}</title><meta name=\"description\" content=\"{}\">\n{}</head><body>{}</body></html>",
-                title, description, meta_tags, output
+                "<html><head>{}</head><body>{}</body></html>",
+                head_tags, output
             );
         }
     }
