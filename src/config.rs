@@ -40,6 +40,18 @@ pub struct CliArgs {
     /// Check for mixed content and security issues
     #[arg(long)]
     pub security_checks: bool,
+
+    /// Enable watch mode with development server
+    #[arg(long)]
+    pub watch: bool,
+
+    /// Development server port (random if not specified)
+    #[arg(long)]
+    pub port: Option<u16>,
+
+    /// Live reload WebSocket port (random if not specified)
+    #[arg(long)]
+    pub ws_port: Option<u16>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -49,6 +61,9 @@ pub struct BuildConfig {
     pub enable_seo: bool,
     pub minify: bool,
     pub security_checks: bool,
+    pub watch: bool,
+    pub port: Option<u16>,
+    pub ws_port: Option<u16>,
 }
 
 impl Default for BuildConfig {
@@ -59,6 +74,9 @@ impl Default for BuildConfig {
             enable_seo: false,
             minify: false,
             security_checks: false,
+            watch: false,
+            port: None,
+            ws_port: None,
         }
     }
 }
@@ -71,6 +89,9 @@ impl From<&CliArgs> for BuildConfig {
             enable_seo: args.enable_seo,
             minify: args.minify,
             security_checks: args.security_checks,
+            watch: args.watch,
+            port: args.port,
+            ws_port: args.ws_port,
         };
 
         // In release mode, enable security checks and minification by default
