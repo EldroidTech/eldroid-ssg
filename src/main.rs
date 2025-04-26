@@ -1,7 +1,6 @@
-use eldroid_ssg::seo::{load_seo_config};
+use eldroid_ssg::seo::load_seo_config;
 use eldroid_ssg::html::generate_html_with_seo;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -35,10 +34,9 @@ fn main() {
                 if path.is_file() {
                     match fs::read_to_string(&path) {
                         Ok(content) => {
-                            let mut visited = HashSet::new();
                             let output_content = {
                                 let mut cache_lock = cache.lock().expect("Failed to lock cache");
-                                generate_html_with_seo(&content, components_dir, &mut cache_lock, &mut visited, &seo_config)
+                                generate_html_with_seo(&content, components_dir, &mut cache_lock, &mut HashSet::new(), &seo_config)
                             };
 
                             let output_path = Path::new(output_dir).join(path.file_name().unwrap());
