@@ -1,6 +1,3 @@
-use html5ever::parse_document;
-use html5ever::tendril::TendrilSink;
-use markup5ever_rcdom::{Handle, NodeData, RcDom};
 use std::collections::HashMap;
 use std::path::Path;
 use std::fs;
@@ -8,6 +5,10 @@ use regex::Regex;
 use once_cell::sync::Lazy;
 
 static IMAGE_EXTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"\.(jpg|jpeg|png|gif|webp)$").unwrap());
+static IMG_TAG: Lazy<Regex> = Lazy::new(|| Regex::new(r#"<img[^>]+src=["']([^"']+)["']"#).unwrap());
+static SCRIPT_TAG: Lazy<Regex> = Lazy::new(|| Regex::new(r#"<script([^>]*)>"#).unwrap());
+static LINK_TAG: Lazy<Regex> = Lazy::new(|| Regex::new(r#"<link[^>]+rel=["']stylesheet["'][^>]*>"#).unwrap());
+static META_TAG: Lazy<Regex> = Lazy::new(|| Regex::new(r#"<meta[^>]+name=["']([^"']+)["'][^>]*>"#).unwrap());
 
 #[derive(Debug)]
 pub struct PageAnalysis {
@@ -42,60 +43,45 @@ impl Analyzer {
             recommendations: Vec::new(),
         };
 
-        let dom = parse_document(RcDom::default(), Default::default())
-            .from_utf8()
-            .read_from(&mut html_content.as_bytes())
-            .unwrap();
+        // Find and analyze images
+        for cap in IMG_TAG.captures_iter(html_content) {
+            analysis.image_count += 1;
+            if let Some(src) = cap.get(1) {
+                self.analyze_image(src.as_str(), &mut analysis, file_path);
+            }
+        }
 
-        self.analyze_node(&dom.document, &mut analysis, file_path);
-        self.generate_recommendations(&mut analysis);
-
-        analysis
-    }
-
-    fn analyze_node(&self, handle: &Handle, analysis: &mut PageAnalysis, file_path: &Path) {
-        let node = handle;
-        match node.data {
-            NodeData::Element { ref name, ref attrs, .. } => {
-                let tag_name = name.local.as_ref();
-                let attrs = attrs.borrow();
-
-                match tag_name {
-                    "img" => {
-                        analysis.image_count += 1;
-                        if let Some(src) = attrs.iter().find(|attr| attr.name.local.as_ref() == "src") {
-                            let src_path = src.value.to_string();
-                            self.analyze_image(&src_path, analysis, file_path);
-                        }
-                    }
-                    "script" => {
-                        if !attrs.iter().any(|attr| attr.name.local.as_ref() == "defer" 
-                            || attr.name.local.as_ref() == "async") {
-                            analysis.blocking_scripts += 1;
-                        }
-                    }
-                    "link" => {
-                        let is_stylesheet = attrs.iter().any(|attr| 
-                            attr.name.local.as_ref() == "rel" && 
-                            attr.value.to_string() == "stylesheet"
-                        );
-                        if is_stylesheet {
-                            analysis.render_blocking_css += 1;
-                        }
-                    }
-                    "meta" => {
-                        // Check for important meta tags
-                        self.check_meta_tags(&attrs, analysis);
-                    }
-                    _ => {}
+        // Count blocking scripts
+        for cap in SCRIPT_TAG.captures_iter(html_content) {
+            if let Some(attrs) = cap.get(1) {
+                let attrs = attrs.as_str();
+                if !attrs.contains("defer") && !attrs.contains("async") {
+                    analysis.blocking_scripts += 1;
                 }
             }
-            _ => {}
         }
 
-        for child in node.children.borrow().iter() {
-            self.analyze_node(child, analysis, file_path);
+        // Count render-blocking CSS
+        analysis.render_blocking_css = LINK_TAG.find_iter(html_content).count();
+
+        // Check meta tags
+        let important_meta_tags = ["description", "viewport", "robots"];
+        let mut found_tags: HashMap<String, bool> = HashMap::new();
+        
+        for cap in META_TAG.captures_iter(html_content) {
+            if let Some(name) = cap.get(1) {
+                found_tags.insert(name.as_str().to_string(), true);
+            }
         }
+
+        for tag in important_meta_tags.iter() {
+            if !found_tags.contains_key(*tag) {
+                analysis.missing_meta_tags.push(tag.to_string());
+            }
+        }
+
+        self.generate_recommendations(&mut analysis);
+        analysis
     }
 
     fn analyze_image(&self, src: &str, analysis: &mut PageAnalysis, file_path: &Path) {
@@ -119,7 +105,7 @@ impl Analyzer {
 
             // Check if image could be optimized
             if let Ok(file) = fs::File::open(&img_path) {
-                if let Ok(reader) = image::io::Reader::new(std::io::BufReader::new(file))
+                if let Ok(reader) = image::ImageReader::new(std::io::BufReader::new(file))
                     .with_guessed_format() {
                     if let Ok(img) = reader.decode() {
                         let (width, height) = (img.width(), img.height());
@@ -130,23 +116,6 @@ impl Analyzer {
                         }
                     }
                 }
-            }
-        }
-    }
-
-    fn check_meta_tags(&self, attrs: &[html5ever::interface::Attribute], analysis: &mut PageAnalysis) {
-        let important_meta_tags = ["description", "viewport", "robots"];
-        let mut found_tags = HashMap::new();
-
-        for attr in attrs {
-            if attr.name.local.as_ref() == "name" {
-                found_tags.insert(attr.value.to_string(), true);
-            }
-        }
-
-        for tag in important_meta_tags.iter() {
-            if !found_tags.contains_key(*tag) {
-                analysis.missing_meta_tags.push(tag.to_string());
             }
         }
     }
