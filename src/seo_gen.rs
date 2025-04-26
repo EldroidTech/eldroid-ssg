@@ -1,100 +1,137 @@
+use std::path::{Path, PathBuf};
 use std::fs;
-use std::path::Path;
-use chrono::{Utc, TimeZone};
-use sitemap::writer::SiteMapWriter;
-use sitemap::structs::{UrlEntry, ChangeFreq};
-use rss::{ChannelBuilder, ItemBuilder};
-use crate::seo::{SEOConfig, PageSEO};
-use log::info;
+use chrono::{DateTime, Utc};
+use crate::seo::SEOConfig;
 
-pub fn generate_sitemap(
-    base_url: &str,
-    pages: &[(String, PageSEO)],
-    output_dir: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let sitemap_path = output_dir.join("sitemap.xml");
-    let file = fs::File::create(&sitemap_path)?;
-    let writer = SiteMapWriter::new(file);
-    let mut urlwriter = writer.start_urlset()?;
+pub fn generate_sitemap(processed_files: &[PathBuf], config: &SEOConfig, output_dir: &str) -> std::io::Result<()> {
+    let mut sitemap = String::from(r#"<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">"#);
 
-    for (path, _page_seo) in pages {
-        let url = format!("{}{}", base_url.trim_end_matches('/'), path);
-        let mut url_entry = UrlEntry::builder()
-            .loc(url)
-            .changefreq(ChangeFreq::Weekly)
-            .priority(0.5);
+    for file in processed_files {
+        if let Some(relative_path) = file.strip_prefix(output_dir).ok() {
+            let url_path = relative_path
+                .to_str()
+                .unwrap()
+                .replace("\\", "/")
+                .trim_start_matches('/')
+                .to_string();
 
-        // Use last modified time if available
-        if let Ok(metadata) = fs::metadata(output_dir.join(path)) {
-            if let Ok(modified) = metadata.modified() {
-                // Convert SystemTime to DateTime<Utc> then to DateTime<FixedOffset>
-                let timestamp = modified.duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_secs())
-                    .unwrap_or(0);
-                if let Some(datetime) = Utc.timestamp_opt(timestamp as i64, 0).earliest() {
-                    url_entry = url_entry.lastmod(datetime.into());
-                }
-            }
+            let last_modified = fs::metadata(file)?
+                .modified()?;
+            
+            let datetime: DateTime<Utc> = last_modified.into();
+            let lastmod = datetime.format("%Y-%m-%d");
+
+            sitemap.push_str(&format!(r#"
+    <url>
+        <loc>{}/{}</loc>
+        <lastmod>{}</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.8</priority>
+    </url>"#,
+                config.base_url.as_ref().unwrap_or(&String::new()),
+                url_path,
+                lastmod
+            ));
         }
-
-        urlwriter.url(url_entry.build()?)?;
     }
 
-    urlwriter.end()?;
-    info!("Generated sitemap at {}", sitemap_path.display());
+    sitemap.push_str("\n</urlset>");
+    fs::write(Path::new(output_dir).join("sitemap.xml"), sitemap)?;
     Ok(())
 }
 
-pub fn generate_rss(
-    config: &SEOConfig,
-    pages: &[(String, PageSEO)],
-    output_dir: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let base_url = config.base_url.as_deref().unwrap_or("/");
-    let site_name = config.site_name.as_deref().unwrap_or("Site Feed");
-
-    let mut items = Vec::new();
-    for (path, page_seo) in pages {
-        let url = format!("{}{}", base_url.trim_end_matches('/'), path);
-        let title = page_seo.title.as_deref().unwrap_or("Untitled");
-        let description = page_seo.description.as_deref().unwrap_or("");
-
-        let item = ItemBuilder::default()
-            .title(title.to_string())
-            .link(url)
-            .description(description.to_string())
-            .build();
-        items.push(item);
-    }
-
-    let channel = ChannelBuilder::default()
-        .title(site_name.to_string())
-        .link(base_url.to_string())
-        .description(config.default_description.clone().unwrap_or_default())
-        .items(items)
-        .build();
-
-    let rss_path = output_dir.join("feed.xml");
-    fs::write(&rss_path, channel.to_string())?;
-    info!("Generated RSS feed at {}", rss_path.display());
-    Ok(())
-}
-
-pub fn generate_robots_txt(
-    config: &SEOConfig,
-    output_dir: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let base_url = config.base_url.as_deref().unwrap_or("/");
-    let robots_content = format!(
-        "User-agent: *\n\
-        Allow: /\n\
-        \n\
-        Sitemap: {}/sitemap.xml",
-        base_url.trim_end_matches('/')
+pub fn generate_rss(processed_files: &[PathBuf], config: &SEOConfig, output_dir: &str) -> std::io::Result<()> {
+    let mut rss = format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+    <channel>
+        <title>{}</title>
+        <link>{}</link>
+        <description>{}</description>
+        <language>en-us</language>
+        <lastBuildDate>{}</lastBuildDate>"#,
+        config.site_name,
+        config.base_url.as_ref().unwrap_or(&String::new()),
+        config.default_description,
+        Utc::now().format("%a, %d %b %Y %H:%M:%S GMT")
     );
 
-    let robots_path = output_dir.join("robots.txt");
-    fs::write(&robots_path, robots_content)?;
-    info!("Generated robots.txt at {}", robots_path.display());
+    for file in processed_files {
+        if let Some(relative_path) = file.strip_prefix(output_dir).ok() {
+            if let Ok(content) = fs::read_to_string(file) {
+                // Extract title and description from HTML
+                let title = extract_title(&content)
+                    .unwrap_or_else(|| relative_path.to_string_lossy().to_string());
+                let description = extract_description(&content)
+                    .unwrap_or_else(|| String::from("No description available"));
+
+                let url_path = relative_path
+                    .to_str()
+                    .unwrap()
+                    .replace("\\", "/")
+                    .trim_start_matches('/')
+                    .to_string();
+
+                let pub_date = fs::metadata(file)?
+                    .modified()?;
+                let datetime: DateTime<Utc> = pub_date.into();
+                
+                rss.push_str(&format!(r#"
+        <item>
+            <title>{}</title>
+            <link>{}/{}</link>
+            <description>{}</description>
+            <pubDate>{}</pubDate>
+            <guid>{}/{}</guid>
+        </item>"#,
+                    title,
+                    config.base_url.as_ref().unwrap_or(&String::new()),
+                    url_path,
+                    description,
+                    datetime.format("%a, %d %b %Y %H:%M:%S GMT"),
+                    config.base_url.as_ref().unwrap_or(&String::new()),
+                    url_path
+                ));
+            }
+        }
+    }
+
+    rss.push_str("\n    </channel>\n</rss>");
+    fs::write(Path::new(output_dir).join("feed.rss"), rss)?;
     Ok(())
+}
+
+pub fn generate_robots_txt(config: &SEOConfig, output_dir: &str) -> std::io::Result<()> {
+    let robots = format!(r#"User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: {}/sitemap.xml
+"#,
+        config.base_url.as_ref().unwrap_or(&String::new())
+    );
+
+    fs::write(Path::new(output_dir).join("robots.txt"), robots)?;
+    Ok(())
+}
+
+fn extract_title(html: &str) -> Option<String> {
+    if let Some(start) = html.find("<title>") {
+        if let Some(end) = html[start..].find("</title>") {
+            return Some(html[start + 7..start + end].trim().to_string());
+        }
+    }
+    None
+}
+
+fn extract_description(html: &str) -> Option<String> {
+    if let Some(start) = html.find(r#"<meta name="description" content=""#) {
+        if let Some(content_start) = html[start..].find("content=\"") {
+            let desc_start = start + content_start + 9;
+            if let Some(end) = html[desc_start..].find('"') {
+                return Some(html[desc_start..desc_start + end].to_string());
+            }
+        }
+    }
+    None
 }

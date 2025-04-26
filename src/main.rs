@@ -1,170 +1,160 @@
-use eldroid_ssg::seo::load_seo_config;
-use eldroid_ssg::html::{generate_html_with_seo, HtmlGenerator};
-use eldroid_ssg::seo_gen::{generate_sitemap, generate_rss, generate_robots_txt};
+use clap::Parser;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 use parking_lot::Mutex;
 use rayon::prelude::*;
 use log::{error, info};
-use std::process;
+
+use eldroid_ssg::{
+    config::{CliArgs, BuildConfig},
+    seo::load_seo_config,
+    html::{generate_html_with_seo, HtmlGenerator},
+    seo_gen::{generate_sitemap, generate_rss, generate_robots_txt},
+    minify::Minifier,
+    analyzer::Analyzer,
+};
 
 fn main() {
     env_logger::init();
 
-    let input_dir = "content";
-    let output_dir = "output";
-    let components_dir = "components";
-    let seo_config_path = "seo_config.toml";
-    let perf_dir = format!("{}/performance", output_dir);
+    // Parse command line arguments
+    let args = CliArgs::parse();
+    let config = BuildConfig::from(&args);
 
-    // Load SEO config
-    let seo_config = match load_seo_config(seo_config_path) {
-        Some(config) => {
-            info!("SEO configuration loaded successfully from {}", seo_config_path);
-            Some(config)
-        },
-        None => {
-            error!("Failed to load SEO configuration from {}", seo_config_path);
-            None
+    // Initialize components
+    let minifier = if config.minify {
+        Some(Minifier::default())
+    } else {
+        None
+    };
+
+    let analyzer = if config.analyze_performance || config.security_checks {
+        let base_url = load_seo_config(&args.seo_config)
+            .and_then(|cfg| cfg.base_url);
+        Some(Analyzer::new(base_url))
+    } else {
+        None
+    };
+
+    // Load SEO config if enabled
+    let seo_config = if config.enable_seo {
+        match load_seo_config(&args.seo_config) {
+            Some(config) => {
+                info!("SEO configuration loaded successfully");
+                Some(config)
+            },
+            None => {
+                error!("Failed to load SEO configuration");
+                None
+            }
         }
+    } else {
+        None
     };
 
     // Ensure output directories exist
-    for dir in [output_dir, &perf_dir] {
-        if !Path::new(dir).exists() {
-            if let Err(err) = fs::create_dir_all(dir) {
-                error!("Error creating directory '{}': {}", dir, err);
-                process::exit(1);
-            }
+    let perf_dir = format!("{}/performance", args.output_dir);
+    for dir in [&args.output_dir, &perf_dir] {
+        if let Err(e) = fs::create_dir_all(dir) {
+            error!("Failed to create directory {}: {}", dir, e);
+            std::process::exit(1);
         }
     }
 
-    // Create thread-safe components
-    let generator = Arc::new(Mutex::new(HtmlGenerator::new()));
-    let processed_pages = Arc::new(Mutex::new(Vec::new()));
+    // Process all content files
+    let html_gen = Arc::new(HtmlGenerator::new());
+    let processed_files = Arc::new(Mutex::new(Vec::new()));
 
-    // Process files in parallel chunks
-    match fs::read_dir(input_dir) {
-        Ok(entries) => {
-            let entries: Vec<_> = entries
-                .filter_map(Result::ok)
-                .filter(|e| e.path().is_file())
-                .collect();
-
-            entries.par_chunks(4).for_each(|chunk| {
-                for entry in chunk {
-                    let path = entry.path();
-                    let generator = Arc::clone(&generator);
-                    let processed_pages = Arc::clone(&processed_pages);
-
-                    match fs::read_to_string(&path) {
-                        Ok(content) => {
-                            let mut generator = generator.lock();
-                            
-                            // Generate HTML with components
-                            let output_content = generate_html_with_seo(
-                                &content,
-                                components_dir,
-                                &mut generator,
-                                &seo_config
-                            );
-
-                            // Generate performance report
-                            let perf_report = generator.generate_perf_report(
-                                &output_content,
-                                &path,
-                                output_dir
-                            );
-
-                            let rel_path = path.strip_prefix(input_dir)
-                                .unwrap_or(&path)
-                                .to_string_lossy()
-                                .into_owned();
-
-                            // Save performance report
-                            let report_path = Path::new(&perf_dir)
-                                .join(format!("{}.perf.txt", path.file_stem().unwrap().to_string_lossy()));
-                            
-                            let report_content = format!(
-                                "Performance Report for {}\n{}\n\nDetails:\n{}\n\nRecommendations:\n{}\n",
-                                rel_path,
-                                "=".repeat(rel_path.len() + 19),
-                                perf_report.details,
-                                perf_report.recommendations.join("\n")
-                            );
-
-                            if let Err(err) = fs::write(&report_path, report_content) {
-                                error!("Error writing performance report '{}': {}", report_path.display(), err);
-                            } else {
-                                info!("Generated performance report: {}", report_path.display());
-                            }
-
-                            // Store report for site summary
-                            generator.performance_reports.push((rel_path.clone(), perf_report));
-
-                            // Extract PageSEO for sitemap/RSS
-                            if let Some(config) = &seo_config {
-                                if config.enable_seo {
-                                    if let Some(page_seo) = eldroid_ssg::seo::parse_page_seo(&content) {
-                                        processed_pages.lock().push((rel_path.clone(), page_seo));
-                                    }
-                                }
-                            }
-
-                            // Write generated HTML
-                            let output_path = Path::new(output_dir).join(path.file_name().unwrap());
-                            if let Err(err) = fs::write(&output_path, output_content) {
-                                error!("Error writing output file '{}': {}", output_path.display(), err);
-                            } else {
-                                info!("Successfully wrote output file: {}", output_path.display());
-                            }
-                        }
-                        Err(err) => {
-                            error!("Error reading file '{}': {}", path.display(), err);
-                        }
-                    }
-                }
-            });
-
-            // Generate site-wide reports
-            let generator = generator.lock();
-            let site_summary = generator.generate_site_summary();
-            let summary_path = Path::new(&perf_dir).join("site_summary.txt");
-            
-            if let Err(err) = fs::write(&summary_path, site_summary) {
-                error!("Error writing site summary: {}", err);
-            } else {
-                info!("Generated site performance summary: {}", summary_path.display());
-            }
-
-            // Generate SEO files
-            if let Some(config) = &seo_config {
-                if config.enable_seo {
-                    if let Some(base_url) = &config.base_url {
-                        let pages = processed_pages.lock();
-                        let output_path = Path::new(output_dir);
-
-                        if let Err(e) = generate_sitemap(base_url, &pages, output_path) {
-                            error!("Failed to generate sitemap: {}", e);
-                        }
-
-                        if let Err(e) = generate_rss(config, &pages, output_path) {
-                            error!("Failed to generate RSS feed: {}", e);
-                        }
-
-                        if let Err(e) = generate_robots_txt(config, output_path) {
-                            error!("Failed to generate robots.txt: {}", e);
-                        }
-                    } else {
-                        error!("base_url is required in SEO config for sitemap generation");
-                    }
+    let walk_dir = |dir: &Path| -> Vec<_> {
+        let mut files = Vec::new();
+        if let Ok(entries) = fs::read_dir(dir) {
+            for entry in entries.filter_map(Result::ok) {
+                let path = entry.path();
+                if path.is_file() && path.extension().map_or(false, |ext| ext == "html") {
+                    files.push(path);
                 }
             }
         }
-        Err(err) => {
-            error!("Error reading input directory '{}': {}", input_dir, err);
-            process::exit(1);
+        files
+    };
+
+    let content_files = walk_dir(Path::new(&args.input_dir));
+    
+    content_files.par_iter().for_each(|file_path| {
+        if let Ok(content) = fs::read_to_string(file_path) {
+            let mut final_content = if let Some(seo) = &seo_config {
+                generate_html_with_seo(&content, seo, &html_gen)
+            } else {
+                html_gen.generate(&content)
+            };
+
+            // Analyze if enabled
+            if let Some(analyzer) = &analyzer {
+                if config.security_checks {
+                    let security_report = analyzer.analyze_security(&final_content, file_path);
+                    if !security_report.mixed_content.is_empty() {
+                        error!("Mixed content found in {}: {:?}", file_path.display(), security_report.mixed_content);
+                    }
+                    if !security_report.insecure_links.is_empty() {
+                        error!("Insecure links found in {}: {:?}", file_path.display(), security_report.insecure_links);
+                    }
+                }
+
+                if config.analyze_performance {
+                    let perf_report = analyzer.analyze_performance(&final_content, file_path);
+                    let perf_file = Path::new(&perf_dir)
+                        .join(file_path.file_name().unwrap())
+                        .with_extension("perf.txt");
+                    
+                    if let Err(e) = fs::write(&perf_file, format!(
+                        "Performance Analysis for {}\n\n{}\n\nRecommendations:\n{}", 
+                        file_path.display(),
+                        perf_report.details,
+                        perf_report.recommendations.join("\n")
+                    )) {
+                        error!("Failed to write performance report: {}", e);
+                    }
+                }
+            }
+
+            // Minify if enabled
+            if let Some(minifier) = &minifier {
+                final_content = minifier.minify_html(&final_content);
+            }
+
+            let out_path = Path::new(&args.output_dir)
+                .join(file_path.strip_prefix(&args.input_dir).unwrap());
+
+            if let Some(parent) = out_path.parent() {
+                if let Err(e) = fs::create_dir_all(parent) {
+                    error!("Failed to create directory {}: {}", parent.display(), e);
+                    return;
+                }
+            }
+
+            if let Err(e) = fs::write(&out_path, final_content) {
+                error!("Failed to write file {}: {}", out_path.display(), e);
+                return;
+            }
+
+            processed_files.lock().push(out_path);
+        }
+    });
+
+    // Generate SEO files if enabled
+    if config.enable_seo {
+        if let Some(seo) = &seo_config {
+            let processed = processed_files.lock();
+            if let Err(e) = generate_sitemap(&processed, seo, &args.output_dir) {
+                error!("Failed to generate sitemap: {}", e);
+            }
+            if let Err(e) = generate_rss(&processed, seo, &args.output_dir) {
+                error!("Failed to generate RSS feed: {}", e);
+            }
+            if let Err(e) = generate_robots_txt(seo, &args.output_dir) {
+                error!("Failed to generate robots.txt: {}", e);
+            }
         }
     }
 }

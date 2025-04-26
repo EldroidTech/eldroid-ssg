@@ -1,25 +1,28 @@
 [package]
 name = "eldroid-ssg"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
-serde = { version = "1.0.197", features = ["derive"] }
-toml = "0.8.10"
-rayon = "1.8.1"
-log = "0.4.21"
-env_logger = "0.11.2"
-html5ever = "0.31.0"
-markup5ever = "0.16.1"
-markup5ever_rcdom = "0.2.0"
-reqwest = { version = "0.12.15", features = ["blocking"] }
-mime = "0.3.17"
-image = { version = "0.25.0", features = ["jpeg", "png", "webp"], default-features = false }
-regex = "1.10.3"
-walkdir = "2.5.0"
-once_cell = "1.19.0"
-parking_lot = "0.12.1"
-serde_json = "1.0.114"
-chrono = { version = "0.4.35", features = ["serde"] }
-sitemap = "0.4.1"
-rss = "2.0.7"
+clap = { version = "4.4", features = ["derive"] }
+env_logger = "0.10"
+log = "0.4"
+minify-html = "0.15"
+lightningcss = "1.0"
+swc = "0.273"
+swc_common = "0.33"
+rayon = "1.8"
+toml = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+parking_lot = "0.12"
+scraper = "0.17"
+regex = "1.9"
+lazy_static = "1.4"
+url = "2.4"
+chrono = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
