@@ -5,19 +5,32 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use rayon::prelude::*;
+use log::{error, info};
+use std::process;
 
 fn main() {
+    env_logger::init();
+
     let input_dir = "content";
     let output_dir = "output";
     let components_dir = "components";
     let seo_config_path = "seo_config.toml";
 
-    let seo_config = load_seo_config(seo_config_path);
+    let seo_config = match load_seo_config(seo_config_path) {
+        Some(config) => {
+            info!("SEO configuration loaded successfully from {}", seo_config_path);
+            Some(config)
+        },
+        None => {
+            error!("Failed to load SEO configuration from {}", seo_config_path);
+            None
+        }
+    };
 
     if !Path::new(output_dir).exists() {
         if let Err(err) = fs::create_dir(output_dir) {
-            eprintln!("Error creating output directory: {}", err);
-            return;
+            error!("Error creating output directory: {}", err);
+            process::exit(1);
         }
     }
 
@@ -40,19 +53,22 @@ fn main() {
                             };
 
                             let output_path = Path::new(output_dir).join(path.file_name().unwrap());
-                            if let Err(err) = fs::write(output_path, output_content) {
-                                eprintln!("Error writing output file: {}", err);
+                            if let Err(err) = fs::write(&output_path, output_content) {
+                                error!("Error writing output file '{}': {}", output_path.display(), err);
+                            } else {
+                                info!("Successfully wrote output file: {}", output_path.display());
                             }
                         }
                         Err(err) => {
-                            eprintln!("Error reading file '{}': {}", path.display(), err);
+                            error!("Error reading file '{}': {}", path.display(), err);
                         }
                     }
                 }
             });
         }
         Err(err) => {
-            eprintln!("Error reading input directory '{}': {}", input_dir, err);
+            error!("Error reading input directory '{}': {}", input_dir, err);
+            process::exit(1);
         }
     }
 }
