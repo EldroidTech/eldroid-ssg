@@ -1,9 +1,15 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::fs;
 use serde::Deserialize;
 use toml;
 use anyhow::Result;
+use lazy_static::lazy_static;
+use regex::Regex;
+
+lazy_static! {
+    static ref VAR_REGEX: Regex = Regex::new(r#"@\{var\(["']([^"']+)["']\)\}"#).unwrap();
+}
 
 #[derive(Debug, Deserialize, Default)]
 pub struct Variables {
@@ -16,18 +22,19 @@ pub struct Variables {
 }
 
 impl Variables {
-    pub fn load(base_path: &Path) -> Result<Self> {
-        let mut vars = Self::load_file(&base_path.join("variables.toml"))?;
+    pub fn load(config_path: &Path) -> Result<Self> {
+        let mut vars = Self::load_file(config_path)?;
         
-        // Load environment-specific variables
-        if cfg!(debug_assertions) {
-            if let Ok(env_vars) = Self::load_file(&base_path.join("variables.dev.toml")) {
-                vars.env_vars = Some(env_vars.vars);
-            }
+        // Load environment-specific variables using same directory as config
+        let base_dir = config_path.parent().unwrap_or(Path::new(""));
+        let env_file = if cfg!(debug_assertions) {
+            base_dir.join("variables.dev.toml")
         } else {
-            if let Ok(env_vars) = Self::load_file(&base_path.join("variables.prod.toml")) {
-                vars.env_vars = Some(env_vars.vars);
-            }
+            base_dir.join("variables.prod.toml")
+        };
+        
+        if let Ok(env_vars) = Self::load_file(&env_file) {
+            vars.env_vars = Some(env_vars.vars);
         }
         
         Ok(vars)
@@ -62,4 +69,20 @@ impl Variables {
 
         self.vars.get(key)
     }
+
+    pub fn substitute(&self, content: &str) -> String {
+        VAR_REGEX.replace_all(content, |caps: &regex::Captures| {
+            let var_name = &caps[1];
+            if let Some(value) = self.get(var_name) {
+                value.to_string()
+            } else {
+                log::warn!("Variable '{}' not found", var_name);
+                format!("@{{var(\"{var_name}\")}}")
+            }
+        }).to_string()
+    }
+}
+
+pub fn load_variables(config_path: &Path) -> Result<Variables> {
+    Variables::load(config_path)
 }
