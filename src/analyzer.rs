@@ -1,4 +1,3 @@
-use log::warn;
 use scraper::{Html, Selector};
 use url::Url;
 use std::collections::HashSet;
@@ -98,7 +97,7 @@ impl Analyzer {
         report
     }
 
-    pub fn analyze_performance(&self, content: &str, file_path: &Path) -> PerformanceReport {
+    pub fn analyze_performance(&self, content: &str, _file_path: &Path) -> PerformanceReport {
         let document = Html::parse_document(content);
         let mut details = String::new();
         let mut recommendations = Vec::new();

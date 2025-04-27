@@ -1,199 +1,155 @@
-use scraper::{Html, Node, Selector};
-use crate::seo::{SEOConfig, PageSEO};
-use std::sync::Arc;
-use std::collections::{HashMap, HashSet};
-use std::fs;
+use scraper::{Html, Selector, Node};
+use log::warn;
+use std::path::Path;
+use crate::seo::{PageSEO, SEOConfig};
 
-/// Represents a component's render function
-pub type ComponentRenderFn = fn(HashMap<String, String>, &mut ComponentContext) -> String;
-
-// Registry for components
-pub struct ComponentRegistry {
-    components: HashMap<String, ComponentRenderFn>,
-}
-
-impl ComponentRegistry {
-    pub fn new() -> Self {
-        Self { components: HashMap::new() }
-    }
-    pub fn register(&mut self, name: &str, render_fn: ComponentRenderFn) {
-        self.components.insert(name.to_string(), render_fn);
-    }
-    pub fn get(&self, name: &str) -> Option<&ComponentRenderFn> {
-        self.components.get(name)
-    }
-}
-
-// Context for rendering, tracks call stack for circular detection
-pub struct ComponentContext<'a> {
-    pub registry: &'a ComponentRegistry,
-    pub call_stack: Vec<String>,
-}
-
-impl<'a> ComponentContext<'a> {
-    pub fn new(registry: &'a ComponentRegistry) -> Self {
-        Self { registry, call_stack: Vec::new() }
-    }
-    pub fn is_circular(&self, name: &str) -> bool {
-        self.call_stack.contains(&name.to_string())
-    }
-}
-
-// Recursively render <el-component ... /> tags
-pub fn render_components(input: &str, ctx: &mut ComponentContext) -> String {
-    let mut output = String::new();
-    let mut last = 0;
-    let re = regex::Regex::new(r#"<el-component\s+([^/>]+)\s*/>"#).unwrap();
-    for cap in re.captures_iter(input) {
-        let m = cap.get(0).unwrap();
-        output.push_str(&input[last..m.start()]);
-        let attrs = &cap[1];
-        let params = parse_attrs(attrs);
-        let c_name = params.get("c_name").cloned().unwrap_or_default();
-        if ctx.is_circular(&c_name) {
-            output.push_str(&format!("<!-- Circular component: {} -->", c_name));
-        } else if let Some(render_fn) = ctx.registry.get(&c_name) {
-            ctx.call_stack.push(c_name.clone());
-            let rendered = render_fn(params, ctx);
-            output.push_str(&render_components(&rendered, ctx));
-            ctx.call_stack.pop();
-        } else {
-            output.push_str(&format!("<!-- Unknown component: {} -->", c_name));
-        }
-        last = m.end();
-    }
-    output.push_str(&input[last..]);
-    output
-}
-
-fn parse_attrs(attrs: &str) -> HashMap<String, String> {
-    let mut map = HashMap::new();
-    let re = regex::Regex::new(r#"(\w+)=[\"']([^\"']+)[\"']"#).unwrap();
-    for cap in re.captures_iter(attrs) {
-        map.insert(cap[1].to_string(), cap[2].to_string());
-    }
-    map
-}
-
-pub struct HtmlGenerator {
-    head_selector: Selector,
-    title_selector: Selector,
-    meta_selector: Selector,
-}
+pub struct HtmlGenerator;
 
 impl HtmlGenerator {
     pub fn new() -> Self {
-        Self {
-            head_selector: Selector::parse("head").unwrap(),
-            title_selector: Selector::parse("title").unwrap(),
-            meta_selector: Selector::parse("meta").unwrap(),
-        }
+        Self
     }
 
     pub fn generate(&self, content: &str) -> String {
         content.to_string()
     }
+}
 
-    fn inject_meta_tags(&self, document: &mut Html, page_seo: &PageSEO, site_seo: &SEOConfig) {
-        let mut head = document.select(&self.head_selector).next().unwrap();
+pub fn generate_html_with_seo(content: &str, site_seo: &SEOConfig, html_gen: &HtmlGenerator) -> String {
+    let html = html_gen.generate(content);
+    if let Some(page_seo) = crate::seo::parse_page_seo(&html) {
+        update_seo_tags(&html, &page_seo, site_seo, Path::new(""))
+    } else {
+        let default_page_seo = PageSEO {
+            title: site_seo.site_name.clone(),
+            description: Some(site_seo.default_description.clone()),
+            keywords: Some(site_seo.default_keywords.clone()),
+            url: "".to_string(),
+            canonical_url: None,
+            structured_data: None,
+        };
+        update_seo_tags(&html, &default_page_seo, site_seo, Path::new(""))
+    }
+}
+
+pub fn update_seo_tags(html_str: &str, page_seo: &PageSEO, site_seo: &SEOConfig, file_path: &Path) -> String {
+    let mut document = Html::parse_document(html_str);
+    let head_selector = Selector::parse("head").unwrap();
+    let title_selector = Selector::parse("title").unwrap();
+    let meta_desc_selector = Selector::parse("meta[name='description']").unwrap();
+    let canonical_selector = Selector::parse("link[rel='canonical']").unwrap();
+
+    if let Some(head) = document.select(&head_selector).next() {
+        let head_id = head.id();
+
+        // Update title
+        let title = format!("{} | {}", &page_seo.title, site_seo.site_name);
+        let title_html = format!("<head><title>{}</title></head>", title);
+        let title_frag = Html::parse_fragment(&title_html);
         
-        // Set or update title
-        let title = format!("{} | {}", page_seo.title, site_seo.site_name);
-        if let Some(existing_title) = document.select(&self.title_selector).next() {
-            let title_node = Node::Text(title.into());
-            existing_title.first_child().unwrap().replace_with(title_node);
-        } else {
-            let title_elem = format!("<title>{}</title>", title);
-            head.append(Node::from_html(&title_elem).unwrap());
+        // Remove existing title and add new one
+        {
+            let existing_title_id = document.select(&title_selector)
+                .next()
+                .map(|el| el.id());
+            
+            if let Some(id) = existing_title_id {
+                document.tree.get_mut(id).unwrap().detach();
+            }
+
+            if let Some(title_elem) = title_frag.select(&Selector::parse("title").unwrap()).next() {
+                document.tree.get_mut(head_id).unwrap()
+                    .append(Node::Element(title_elem.value().clone()));
+            }
         }
 
-        // Add meta description
-        let desc = format!(
-            "<meta name=\"description\" content=\"{}\">",
-            page_seo.description.as_deref().unwrap_or(&site_seo.default_description)
-        );
-        head.append(Node::from_html(&desc).unwrap());
-
-        // Add canonical URL if present
-        if let Some(canonical) = &page_seo.canonical_url {
-            let canonical_tag = format!(
-                "<link rel=\"canonical\" href=\"{}\">",
-                canonical
-            );
-            head.append(Node::from_html(&canonical_tag).unwrap());
+        // Update description
+        if let Some(description) = &page_seo.description {
+            let desc_html = format!("<head><meta name=\"description\" content=\"{}\"></head>", description);
+            let desc_frag = Html::parse_fragment(&desc_html);
+            
+            let existing_desc_id = document.select(&meta_desc_selector)
+                .next()
+                .map(|el| el.id());
+            
+            if let Some(id) = existing_desc_id {
+                document.tree.get_mut(id).unwrap().detach();
+            }
+            
+            if let Some(meta_elem) = desc_frag.select(&Selector::parse("meta").unwrap()).next() {
+                document.tree.get_mut(head_id).unwrap()
+                    .append(Node::Element(meta_elem.value().clone()));
+            }
         }
 
-        // Add Open Graph tags
+        // Update canonical URL
+        if let Some(canonical_url) = &page_seo.canonical_url {
+            let canonical_html = format!("<head><link rel=\"canonical\" href=\"{}\"></head>", canonical_url);
+            let canonical_frag = Html::parse_fragment(&canonical_html);
+            
+            let existing_canonical_id = document.select(&canonical_selector)
+                .next()
+                .map(|el| el.id());
+            
+            if let Some(id) = existing_canonical_id {
+                document.tree.get_mut(id).unwrap().detach();
+            }
+            
+            if let Some(link_elem) = canonical_frag.select(&Selector::parse("link").unwrap()).next() {
+                document.tree.get_mut(head_id).unwrap()
+                    .append(Node::Element(link_elem.value().clone()));
+            }
+        }
+
+        // Update Open Graph tags
         let og_tags = vec![
-            ("og:title", &title),
-            ("og:description", page_seo.description.as_deref().unwrap_or(&site_seo.default_description)),
-            ("og:type", "website"),
-            ("og:url", &page_seo.url),
+            ("og:title".to_string(), page_seo.title.clone()),
+            ("og:description".to_string(), page_seo.description.clone().unwrap_or_else(|| site_seo.default_description.clone())),
+            ("og:type".to_string(), "website".to_string()),
+            ("og:url".to_string(), page_seo.url.clone()),
+            ("og:site_name".to_string(), site_seo.site_name.clone()),
         ];
 
         for (property, content) in og_tags {
-            let meta = format!(
-                "<meta property=\"{}\" content=\"{}\">",
-                property, content
-            );
-            head.append(Node::from_html(&meta).unwrap());
-        }
-
-        // Add page-specific keywords if present
-        if let Some(keywords) = &page_seo.keywords {
-            let keywords_tag = format!(
-                "<meta name=\"keywords\" content=\"{}\">",
-                keywords.join(", ")
-            );
-            head.append(Node::from_html(&keywords_tag).unwrap());
-        }
-
-        // Add structured data if present
-        if let Some(structured_data) = &page_seo.structured_data {
-            let script = format!(
-                "<script type=\"application/ld+json\">{}</script>",
-                structured_data
-            );
-            head.append(Node::from_html(&script).unwrap());
-        }
-    }
-}
-
-pub fn generate_html_with_seo(content: &str, site_seo: &SEOConfig, generator: &Arc<HtmlGenerator>) -> String {
-    // Extract page-specific SEO data from HTML comments
-    let page_seo = match crate::seo::parse_page_seo(content) {
-        Some(seo) => seo,
-        None => return generator.generate(content),
-    };
-
-    // Parse HTML and inject SEO tags
-    let mut document = Html::parse_document(content);
-    generator.inject_meta_tags(&mut document, &page_seo, site_seo);
-    
-    document.html()
-}
-
-/// Loads global macros from a file (macros.toml) in the project root.
-pub fn load_global_macros(path: &str) -> std::collections::HashMap<String, String> {
-    let mut macros = std::collections::HashMap::new();
-    if let Ok(content) = fs::read_to_string(path) {
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') { continue; }
-            if let Some((k, v)) = line.split_once('=') {
-                macros.insert(k.trim().to_string(), v.trim().trim_matches('"').to_string());
+            let meta_html = format!("<head><meta property=\"{}\" content=\"{}\"></head>", property, content);
+            let meta_frag = Html::parse_fragment(&meta_html);
+            if let Some(meta_elem) = meta_frag.select(&Selector::parse("meta").unwrap()).next() {
+                document.tree.get_mut(head_id).unwrap()
+                    .append(Node::Element(meta_elem.value().clone()));
             }
         }
-    }
-    macros
-}
 
-/// Replaces all {{MACRO_NAME}} in the input string with their values from the macros map.
-pub fn replace_global_macros(input: &str, macros: &std::collections::HashMap<String, String>) -> String {
-    let mut output = input.to_string();
-    for (k, v) in macros {
-        let pattern = format!("{{{{{}}}}}", k);
-        output = output.replace(&pattern, v);
+        // Update keywords if available
+        if let Some(keywords) = &page_seo.keywords {
+            let keywords_html = format!("<head><meta name=\"keywords\" content=\"{}\"></head>", keywords.join(", "));
+            let keywords_frag = Html::parse_fragment(&keywords_html);
+            if let Some(meta_elem) = keywords_frag.select(&Selector::parse("meta").unwrap()).next() {
+                document.tree.get_mut(head_id).unwrap()
+                    .append(Node::Element(meta_elem.value().clone()));
+            }
+        }
+
+        // Add Google Analytics if configured
+        if let Some(ga_id) = &site_seo.google_site_verification {
+            let script_html = format!(
+                "<head><script async src=\"https://www.googletagmanager.com/gtag/js?id={}\"></script>\
+                <script>\
+                window.dataLayer = window.dataLayer || [];\
+                function gtag(){{dataLayer.push(arguments);}}\
+                gtag('js', new Date());\
+                gtag('config', '{}');\
+                </script></head>",
+                ga_id, ga_id
+            );
+            let script_frag = Html::parse_fragment(&script_html);
+            for script_elem in script_frag.select(&Selector::parse("script").unwrap()) {
+                document.tree.get_mut(head_id).unwrap()
+                    .append(Node::Element(script_elem.value().clone()));
+            }
+        }
+    } else {
+        warn!("No <head> tag found in {}", file_path.display());
     }
-    output
+
+    document.html()
 }
