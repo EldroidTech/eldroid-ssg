@@ -13,6 +13,8 @@ use eldroid_ssg::{
     seo_gen::{generate_sitemap, generate_rss, generate_robots_txt},
     minify::Minifier,
     analyzer::Analyzer,
+    variables::load_variables,
+    macros::MacroProcessor,
 };
 
 fn walk_dir_recursive(dir: &Path) -> Vec<std::path::PathBuf> {
@@ -67,6 +69,21 @@ fn main() {
         None
     };
 
+    // Load variables configuration
+    let variables = match load_variables(&args.variables_config) {
+        Ok(vars) => {
+            info!("Variables configuration loaded successfully");
+            Some(vars)
+        },
+        Err(e) => {
+            error!("Failed to load variables configuration: {}", e);
+            None
+        }
+    };
+
+    // Initialize macro processor
+    let macro_processor = MacroProcessor::new();
+
     // Ensure output directories exist
     let perf_dir = format!("{}/performance", args.output_dir);
     for dir in [&args.output_dir, &perf_dir] {
@@ -77,7 +94,11 @@ fn main() {
     }
 
     // Process all content files
-    let html_gen = Arc::new(HtmlGenerator::new());
+    let html_gen = Arc::new(
+        HtmlGenerator::new()
+            .with_variables(variables.unwrap_or_default())
+            .with_macros(macro_processor)
+    );
     let processed_files = Arc::new(Mutex::new(Vec::new()));
 
     let content_files = walk_dir_recursive(Path::new(&args.input_dir));

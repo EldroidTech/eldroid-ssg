@@ -5,6 +5,56 @@ Global macros in Eldroid SSG provide a powerful way to inject dynamic content an
 
 ## Basic Syntax
 
+### Variable Configuration
+Create a `variables.toml` file in your project root:
+```toml
+# variables.toml
+site_name = "My Awesome Site"
+author = "Jane Doe"
+contact_email = "jane@example.com"
+version = "1.0.0"
+```
+
+### Using Variables
+Variables can be used in any content file or component using the `var` macro:
+```html
+<header>
+    <h1>@{var("site_name")}</h1>
+    <p>Version @{var("version")}</p>
+</header>
+
+<footer>
+    Contact @{var("author")} at @{var("contact_email")}
+</footer>
+```
+
+### Variable Scopes
+Variables can be defined in different scopes:
+1. Global (variables.toml)
+2. Environment-specific (variables.dev.toml, variables.prod.toml)
+3. Page-level (in frontmatter)
+
+```toml
+# variables.dev.toml
+api_url = "http://localhost:3000"
+
+# variables.prod.toml
+api_url = "https://api.production.com"
+```
+
+Page-level variables in markdown files:
+```markdown
+---
+title: My Page
+variables:
+  hero_image: "/images/custom-hero.jpg"
+  sidebar_visible: true
+---
+
+# @{var("title")}
+<img src="@{var("hero_image")}" />
+```
+
 ### Macro Definition
 ```rust
 // macros.ed

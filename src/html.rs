@@ -2,16 +2,46 @@ use scraper::{Html, Selector, Node};
 use log::warn;
 use std::path::Path;
 use crate::seo::{PageSEO, SEOConfig};
+use crate::variables::Variables;
+use crate::macros::MacroProcessor;
 
-pub struct HtmlGenerator;
+pub struct HtmlGenerator {
+    variables: Option<Variables>,
+    macro_processor: Option<MacroProcessor>,
+}
 
 impl HtmlGenerator {
     pub fn new() -> Self {
-        Self
+        Self {
+            variables: None,
+            macro_processor: None,
+        }
+    }
+
+    pub fn with_variables(mut self, vars: Variables) -> Self {
+        self.variables = Some(vars);
+        self
+    }
+
+    pub fn with_macros(mut self, processor: MacroProcessor) -> Self {
+        self.macro_processor = Some(processor);
+        self
     }
 
     pub fn generate(&self, content: &str) -> String {
-        content.to_string()
+        let mut processed = content.to_string();
+
+        // Process variables if configured
+        if let Some(vars) = &self.variables {
+            processed = vars.substitute(&processed);
+        }
+
+        // Process macros if configured
+        if let Some(processor) = &self.macro_processor {
+            processed = processor.process(&processed);
+        }
+
+        processed
     }
 }
 

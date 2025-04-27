@@ -17,6 +17,10 @@ pub struct CliArgs {
     #[arg(long, default_value = "components")]
     pub components_dir: String,
 
+    /// Variables configuration file path
+    #[arg(long, default_value = "variables.toml")]
+    pub variables_config: PathBuf,
+
     /// Release mode with additional optimizations
     #[arg(long)]
     pub release: bool,
@@ -64,6 +68,7 @@ pub struct BuildConfig {
     pub watch: bool,
     pub port: Option<u16>,
     pub ws_port: Option<u16>,
+    pub variables_config: PathBuf,
 }
 
 impl Default for BuildConfig {
@@ -77,6 +82,7 @@ impl Default for BuildConfig {
             watch: false,
             port: None,
             ws_port: None,
+            variables_config: PathBuf::from("variables.toml"),
         }
     }
 }
@@ -92,6 +98,7 @@ impl From<&CliArgs> for BuildConfig {
             watch: args.watch,
             port: args.port,
             ws_port: args.ws_port,
+            variables_config: args.variables_config.clone(),
         };
 
         // In release mode, enable security checks and minification by default
