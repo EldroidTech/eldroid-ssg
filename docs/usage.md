@@ -3,9 +3,14 @@
 ## Quick Start
 
 ```bash
+# Install
 cargo install eldroid-ssg
+
+# Create new site
 mkdir my-site && cd my-site
 mkdir content components static
+
+# Start development server
 eldroid-ssg --watch --port 3000
 ```
 
@@ -29,39 +34,42 @@ my-site/
 └── seo_config.toml # SEO configuration
 ```
 
-## Configuration Files
+## Development Server
 
-### SEO Configuration
-```toml
-# seo_config.toml
-[site]
-name = "My Site"
-description = "My awesome static site"
-base_url = "https://example.com"
-language = "en"
-
-[meta]
-keywords = ["blog", "technology", "rust"]
-author = "Your Name"
-twitter = "@username"
-
-[advanced]
-robots_txt = true
-sitemap = true
-feed = true
+### Starting the Server
+```bash
+eldroid-ssg --watch --port 3000
 ```
 
-### Content Front Matter
-```yaml
----
-title: My First Post
-description: An introduction to my blog
-date: 2025-04-27
-tags: ["rust", "static-site"]
-template: blog
-draft: false
----
+### Features
+- Hot reloading via WebSocket
+- Automatic browser refresh on file changes
+- Real-time error reporting
+- Asset optimization in development
+- Performance metrics dashboard
+
+### Configuration
+The development server can be configured through CLI options or environment variables:
+
+```bash
+# CLI options
+eldroid-ssg --watch             # Enable watch mode
+           --port 3000          # HTTP server port
+           --ws-port 3001       # WebSocket server port (optional)
+           --host 127.0.0.1     # Server host (default: 127.0.0.1)
+
+# Environment variables
+ELDROID_PORT=3000              # Override HTTP port
+ELDROID_WS_PORT=3001          # Override WebSocket port
+ELDROID_HOST=0.0.0.0          # Override host
 ```
+
+### Hot Reloading
+The development server automatically:
+- Watches for file changes in content/, components/, and static/
+- Rebuilds only affected pages
+- Sends reload signals via WebSocket
+- Updates the browser without full page refresh when possible
 
 ## CLI Options
 

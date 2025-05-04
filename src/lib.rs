@@ -6,6 +6,7 @@ pub mod seo;
 pub mod seo_gen;
 pub mod variables;
 pub mod macros;
+pub mod watcher;
 
 // Re-export commonly used types
 pub use config::{CliArgs, BuildConfig};
@@ -16,3 +17,4 @@ pub use seo::{SEOConfig, PageSEO, load_seo_config};
 pub use seo_gen::{generate_sitemap, generate_rss, generate_robots_txt};
 pub use variables::{Variables, load_variables};
 pub use macros::MacroProcessor;
+pub use watcher::DevServer;

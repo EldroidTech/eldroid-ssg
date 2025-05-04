@@ -74,6 +74,19 @@ Eldroid SSG provides a modern static site generation experience with the followi
 - Automatic browser refresh on content changes
 - WebSocket-based state synchronization
 
+### Development Server with Hot Reloading
+- WebSocket-based live reload system
+- Intelligent file watching with debouncing
+- Real-time component updates without page refresh
+- Automatic browser synchronization
+- Built-in error reporting and overlay
+- Performance metrics in development
+- Support for multiple file types:
+  - HTML/MD content files
+  - Component templates
+  - Static assets (CSS, JS, images)
+  - Configuration files
+
 ### Development Tools
 - Build process logging
 - Error reporting with source maps
@@ -81,3 +94,12 @@ Eldroid SSG provides a modern static site generation experience with the followi
 - Memory usage tracking
 - Network request monitoring
 - Component dependency graph visualization
+
+### Performance Monitoring
+- Build-time performance tracking
+- Component render time analysis
+- Asset size monitoring
+- Network request waterfall
+- Memory usage tracking
+- Cache hit rate statistics
+- WebSocket connection metrics

@@ -1,33 +1,82 @@
-# Documentation
+# Eldroid SSG
 
-Full documentation for Eldroid SSG is now available in the `docs/` directory:
+A modern, blazing-fast static site generator written in Rust. It features:
 
-- [Features](docs/features.md)
-- [Component System](docs/components.md)
-- [Global Macros](docs/macros.md)
-- [Usage & CLI](docs/usage.md)
-- [SEO & Performance](docs/seo_performance.md)
-- [Development & Contribution](docs/development.md)
-
-See the respective files for detailed information on each topic.
-
----
-
-# Eldroid SSG (Summary)
-
-Eldroid SSG is a modern, fast static site generator written in Rust. It features:
-- Fast incremental builds
-- SEO optimization
+- Fast incremental builds with hot reloading
 - Component-based architecture
-- Global macros
+- SEO optimization
+- Global macros system
 - Security and performance analysis
+- Live development server with WebSocket-based hot reload
 
-For full details, see the documentation in the `docs/` directory.
+## Quick Start
 
-# Subdirectory Support
+```bash
+# Install Eldroid SSG
+cargo install eldroid-ssg
 
-Eldroid SSG fully supports subdirectories in both the `content/` and `components/` directories. The output directory will automatically mirror the subdirectory structure of your `content/` directory, ensuring all generated files are placed in the correct relative paths.
+# Create a new site
+mkdir my-site && cd my-site
+mkdir content components static
 
-- You can organize your content and components in nested folders for better structure and scalability.
-- When the site is built, the output directory will preserve the same folder hierarchy as your content directory.
-- Component auto-registration also supports nested folders in the `components/` directory.
+# Start development server with hot reload
+eldroid-ssg --watch --port 3000
+```
+
+## Documentation
+
+Full documentation is available in the `docs/` directory:
+
+- [Features](docs/features.md) - Overview of all features
+- [Usage & CLI](docs/usage.md) - Complete usage guide and CLI options
+- [Component System](docs/components.md) - Component-based architecture
+- [Global Macros](docs/macros.md) - Macro system documentation
+- [SEO & Performance](docs/seo_performance.md) - SEO and performance optimization
+- [Development & Contribution](docs/development.md) - Development guide
+
+## Key Features
+
+### Fast Development Server
+- Hot reloading with WebSocket-based live updates
+- Automatic browser refresh on file changes
+- Real-time error reporting
+- Performance metrics
+
+### Component System
+- Reusable components with parameter support
+- Automatic component registration
+- Nested components with infinite depth
+- Hot reloading support
+
+### Build Optimization
+- Smart incremental builds
+- Asset optimization (images, CSS, JS)
+- SEO enhancement
+- Security checks
+
+### SEO Features
+- Automatic meta tag generation
+- Structured data support
+- Sitemap and robots.txt generation
+- Social media tags
+
+## Project Structure
+
+```
+my-site/
+├── content/          # Content files (.html, .md)
+│   ├── index.html    # Site homepage
+│   └── blog/         # Blog posts
+├── components/       # Reusable components
+│   ├── header.html
+│   └── footer.html
+├── static/          # Static assets
+│   ├── css/
+│   ├── js/
+│   └── images/
+└── seo_config.toml  # SEO configuration
+```
+
+## Contributing
+
+Contributions are welcome! See [Development & Contribution](docs/development.md) for guidelines.

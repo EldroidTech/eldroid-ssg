@@ -37,76 +37,125 @@ src/
    - Apply security headers
    - Generate final HTML
 
+## Setting Up the Development Environment
+
+### Prerequisites
+- Rust toolchain (1.75.0 or later)
+- Cargo package manager
+- Node.js (optional, for asset processing)
+
+### Local Development
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/eldroid-ssg.git
+cd eldroid-ssg
+```
+
+2. Build the project:
+```bash
+cargo build
+```
+
+3. Run tests:
+```bash
+cargo test
+```
+
+## Development Server
+
+### Architecture
+The development server consists of two main components:
+1. Static file server (HTTP)
+2. WebSocket server for live reloading
+
+### Implementation Details
+- File watching using `notify` crate
+- WebSocket communication for real-time updates
+- Debounced rebuilds for performance
+- Intelligent cache invalidation
+- Memory-efficient file tracking
+
+### Working with Hot Reload
+1. Start the development server:
+```bash
+cargo run -- --watch --port 3000
+```
+
+2. The server will:
+   - Watch for file changes in content/, components/, and static/
+   - Rebuild only affected pages
+   - Notify connected browsers via WebSocket
+   - Display build status and errors
+
+3. Development Features:
+   - Instant feedback on file changes
+   - Source map support for debugging
+   - Performance metrics dashboard
+   - Error overlay for build failures
+   - Network request logging
+
+## Project Structure
+
+### Core Components
+- `src/watcher.rs`: Development server and hot reload
+- `src/html.rs`: HTML generation and component system
+- `src/seo.rs`: SEO optimization
+- `src/macros.rs`: Macro processing system
+
+### Adding New Features
+
+1. Create feature branch:
+```bash
+git checkout -b feature/new-feature
+```
+
+2. Implement changes following the project structure
+3. Add tests in the appropriate test modules
+4. Update documentation
+5. Submit pull request
+
+## Testing
+
+### Running Tests
+```bash
+# Run all tests
+cargo test
+
+# Run specific test
+cargo test test_name
+
+# Run with logging
+RUST_LOG=debug cargo test
+```
+
+### Test Categories
+1. Unit Tests: Individual component functionality
+2. Integration Tests: Component interaction
+3. End-to-End Tests: Full build process
+4. Development Server Tests: Hot reload functionality
+
 ## Contributing
 
-### Setting Up Development Environment
-1. Install Rust and Cargo
-2. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/eldroid-ssg.git
-   cd eldroid-ssg
-   ```
-3. Install development dependencies:
-   ```bash
-   cargo install cargo-watch cargo-edit cargo-audit
-   ```
+### Guidelines
+1. Follow Rust coding standards
+2. Add tests for new features
+3. Update documentation
+4. Use descriptive commit messages
 
-### Development Workflow
-1. Create a new branch:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
+### Pull Request Process
+1. Create feature branch
+2. Implement changes
+3. Add tests
+4. Update docs
+5. Submit PR
 
-2. Run tests while developing:
-   ```bash
-   cargo watch -x test
-   ```
-
-3. Run the development server:
-   ```bash
-   cargo run -- --watch --port 3000
-   ```
-
-### Testing
-- Unit tests are in each module file
-- Integration tests are in `tests/`
-- Run all tests: `cargo test`
-- Run specific test: `cargo test test_name`
-- Generate test coverage: `cargo tarpaulin`
-
-### Performance Testing
-```bash
-cargo run --release -- --analyze-performance --input-dir examples/large-site
-```
-
-### Debug Logging
-Enable debug logs with environment variables:
-```bash
-RUST_LOG=debug cargo run
-```
-
-Log levels:
-- `error`: Critical errors
-- `warn`: Warning conditions
-- `info`: General information
-- `debug`: Detailed information
-- `trace`: Very detailed debugging
-
-### Profiling
-1. CPU profiling:
-   ```bash
-   cargo run --release -- --profile-cpu
-   ```
-
-2. Memory profiling:
-   ```bash
-   cargo run --release -- --profile-memory
-   ```
-
-3. View flamegraphs:
-   ```bash
-   cargo flamegraph
-   ```
+### Development Tips
+- Use `RUST_LOG=debug` for detailed logging
+- Test hot reload with various file types
+- Verify WebSocket reconnection handling
+- Check memory usage during long sessions
+- Test with different project sizes
 
 ## Architecture Deep Dive
 

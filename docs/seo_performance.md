@@ -147,3 +147,44 @@ This provides:
 - Error tracking and reporting
 - User behavior analytics
 - Performance budget alerts
+
+## Development Server Performance
+
+### Real-time Monitoring
+Enable real-time performance monitoring in development:
+
+```toml
+# seo_config.toml
+[monitoring]
+enable_dev_metrics = true
+watch_memory = true
+track_rebuild_time = true
+log_performance = true
+```
+
+### Metrics Dashboard
+The development server provides:
+- Component render times
+- Build duration tracking
+- Memory usage graphs
+- WebSocket connection status
+- File change statistics
+- Cache hit rates
+
+### Performance Budgets
+Set performance budgets for development:
+
+```toml
+[performance.budget]
+total_bundle_size = "500kb"
+page_load_time = "300ms"
+first_paint = "100ms"
+rebuild_time = "50ms"
+```
+
+### Debug Logging
+Enable detailed performance logging:
+
+```bash
+RUST_LOG=debug eldroid-ssg --watch --analyze-performance
+```

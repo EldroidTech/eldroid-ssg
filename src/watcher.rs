@@ -1,9 +1,10 @@
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use warp::Filter;
 use futures::StreamExt;
+use futures::SinkExt;
 use log::{info, error};
 use portpicker::pick_unused_port;
 use parking_lot::RwLock;
@@ -65,12 +66,12 @@ impl DevServer {
         let ws_route = warp::path("ws")
             .and(warp::ws())
             .and(warp::any().map(move || tx_clone.subscribe()))
-            .map(|ws: warp::ws::Ws, mut rx| {
+            .map(|ws: warp::ws::Ws, mut rx: broadcast::Receiver<FileChange>| {
                 ws.on_upgrade(move |socket| async move {
-                    let (tx, _) = socket.split();
+                    let (mut tx, _) = socket.split();
                     while rx.recv().await.is_ok() {
                         // Send reload message to browser
-                        if let Err(e) = warp::ws::Message::text("reload").forward(tx).await {
+                        if let Err(e) = tx.send(warp::ws::Message::text("reload")).await {
                             error!("WebSocket send error: {}", e);
                             break;
                         }
@@ -80,7 +81,7 @@ impl DevServer {
 
         // Set up static file server
         let static_route = warp::fs::dir(self.output_dir.clone());
-        let routes = ws_route.or(static_route);
+        let routes = ws_route.clone().or(static_route);
 
         // Start the servers
         let server_handle = tokio::spawn(warp::serve(routes).run(([127, 0, 0, 1], self.port)));
@@ -100,10 +101,16 @@ impl DevServer {
 
     fn setup_watcher(&self, tx: broadcast::Sender<FileChange>) -> notify::Result<RecommendedWatcher> {
         let changed_files = self.changed_files.clone();
+        let mut last_event = std::time::Instant::now();
+        let debounce_duration = Duration::from_millis(100);
         
-        let mut debouncer = tokio::time::interval(Duration::from_millis(100));
-        let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+        let watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
             if let Ok(event) = res {
+                let now = std::time::Instant::now();
+                if now.duration_since(last_event) < debounce_duration {
+                    return;
+                }
+
                 let change_type = match event.kind {
                     notify::EventKind::Create(_) => ChangeType::Create,
                     notify::EventKind::Modify(_) => ChangeType::Modify,
@@ -113,19 +120,16 @@ impl DevServer {
 
                 for path in event.paths {
                     changed_files.write().insert(path.clone());
+                    let change = FileChange {
+                        path,
+                        event_type: change_type.clone(),
+                    };
                     
-                    // Debounce and batch changes
-                    if debouncer.tick().now_or_never().is_some() {
-                        let change = FileChange {
-                            path,
-                            event_type: change_type.clone(),
-                        };
-                        
-                        if tx.send(change).is_err() {
-                            error!("Failed to send file change event");
-                        }
+                    if tx.send(change).is_err() {
+                        error!("Failed to send file change event");
                     }
                 }
+                last_event = now;
             }
         })?;
 

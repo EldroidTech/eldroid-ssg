@@ -5,16 +5,18 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 use rayon::prelude::*;
 use log::{error, info};
+use tokio;
 
 use eldroid_ssg::{
     config::{CliArgs, BuildConfig},
-    seo::load_seo_config,
+    seo::{load_seo_config, SEOConfig},
     html::{generate_html_with_seo, HtmlGenerator},
     seo_gen::{generate_sitemap, generate_rss, generate_robots_txt},
     minify::Minifier,
     analyzer::Analyzer,
     variables::load_variables,
     macros::MacroProcessor,
+    watcher::DevServer,
 };
 
 fn walk_dir_recursive(dir: &Path) -> Vec<std::path::PathBuf> {
@@ -32,11 +34,13 @@ fn walk_dir_recursive(dir: &Path) -> Vec<std::path::PathBuf> {
     files
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     env_logger::init();
     // Parse command line arguments
     let args = CliArgs::parse();
     let config = BuildConfig::from(&args);
+    let perf_dir = format!("{}/performance", args.output_dir);
 
     // Initialize components
     let minifier = if config.minify {
@@ -85,7 +89,6 @@ fn main() {
     let macro_processor = MacroProcessor::new();
 
     // Ensure output directories exist
-    let perf_dir = format!("{}/performance", args.output_dir);
     for dir in [&args.output_dir, &perf_dir] {
         if let Err(e) = fs::create_dir_all(dir) {
             error!("Failed to create directory {}: {}", dir, e);
@@ -93,14 +96,47 @@ fn main() {
         }
     }
 
-    // Process all content files
+    // Initialize HtmlGenerator
     let html_gen = Arc::new(
         HtmlGenerator::new()
             .with_variables(variables.unwrap_or_default())
             .with_macros(macro_processor)
     );
-    let processed_files = Arc::new(Mutex::new(Vec::new()));
 
+    // Start development server if watch mode is enabled
+    if config.watch {
+        let dev_server = DevServer::new(
+            &args.input_dir,
+            &args.output_dir,
+            &args.components_dir,
+            args.port,
+            args.ws_port,
+        );
+
+        // Process files initially
+        process_files(&args, &config, &html_gen, &minifier, &analyzer, &seo_config, &perf_dir);
+
+        // Start the development server
+        if let Err(e) = dev_server.start().await {
+            error!("Failed to start development server: {}", e);
+            std::process::exit(1);
+        }
+    } else {
+        // One-time build
+        process_files(&args, &config, &html_gen, &minifier, &analyzer, &seo_config, &perf_dir);
+    }
+}
+
+fn process_files(
+    args: &CliArgs,
+    config: &BuildConfig,
+    html_gen: &Arc<HtmlGenerator>,
+    minifier: &Option<Minifier>,
+    analyzer: &Option<Analyzer>,
+    seo_config: &Option<SEOConfig>,
+    perf_dir: &str,
+) {
+    let processed_files = Arc::new(Mutex::new(Vec::new()));
     let content_files = walk_dir_recursive(Path::new(&args.input_dir));
     content_files.par_iter().for_each(|file_path| {
         if let Ok(content) = fs::read_to_string(file_path) {
