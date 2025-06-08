@@ -1,0 +1,204 @@
+/* Light theme (default) */
+:root {
+  --md-bg: #ffffff;
+  --md-text: #2c3e50;
+  --md-title: #1a202c;
+  --md-link: #3182ce;
+  --md-link-hover: #2c5282;
+  --md-border: #e2e8f0;
+  --md-code-bg: #f7fafc;
+  --md-code-text: #805ad5;
+  --md-blockquote-bg: #f8f9fa;
+  --md-blockquote-border: #cbd5e0;
+  --md-table-border: #e2e8f0;
+  --md-table-stripe: #f7fafc;
+  --md-inline-code-bg: #edf2f7;
+}
+
+/* Dark theme */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --md-bg: #1a202c;
+    --md-text: #e2e8f0;
+    --md-title: #f7fafc;
+    --md-link: #63b3ed;
+    --md-link-hover: #90cdf4;
+    --md-border: #2d3748;
+    --md-code-bg: #2d3748;
+    --md-code-text: #b794f4;
+    --md-blockquote-bg: #2d3748;
+    --md-blockquote-border: #4a5568;
+    --md-table-border: #2d3748;
+    --md-table-stripe: #2d3748;
+    --md-inline-code-bg: #2d3748;
+  }
+}
+
+/* Markdown Content Styles */
+.markdown-content {
+  max-width: 100%;
+  margin: 0 auto;
+  color: var(--md-text);
+  background: var(--md-bg);
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  color: var(--md-title);
+  margin-top: 2em;
+  margin-bottom: 1em;
+  line-height: 1.3;
+}
+
+.markdown-content h1 {
+  font-size: 2.25em;
+  border-bottom: 2px solid var(--md-border);
+  padding-bottom: 0.3em;
+}
+
+.markdown-content h2 {
+  font-size: 1.8em;
+  border-bottom: 1px solid var(--md-border);
+  padding-bottom: 0.3em;
+}
+
+.markdown-content p {
+  margin: 1em 0;
+  line-height: 1.7;
+}
+
+.markdown-content a {
+  color: var(--md-link);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.markdown-content a:hover {
+  color: var(--md-link-hover);
+  text-decoration: underline;
+}
+
+.markdown-content code {
+  font-family: var(--font-mono);
+  padding: 0.2em 0.4em;
+  background-color: var(--md-inline-code-bg);
+  border-radius: 3px;
+  font-size: 0.9em;
+  color: var(--md-code-text);
+}
+
+.markdown-content pre {
+  background-color: var(--md-code-bg);
+  border-radius: 6px;
+  padding: 1em;
+  overflow-x: auto;
+  margin: 1.5em 0;
+}
+
+.markdown-content pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.9em;
+  line-height: 1.5;
+  color: var(--md-text);
+}
+
+.markdown-content blockquote {
+  margin: 1.5em 0;
+  padding: 1em;
+  background-color: var(--md-blockquote-bg);
+  border-left: 4px solid var(--md-blockquote-border);
+  color: var(--md-text);
+}
+
+.markdown-content blockquote p {
+  margin: 0;
+}
+
+.markdown-content img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1.5em auto;
+  border-radius: 6px;
+}
+
+.markdown-content hr {
+  border: none;
+  border-top: 2px solid var(--md-border);
+  margin: 2em 0;
+}
+
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+}
+
+.markdown-content table th,
+.markdown-content table td {
+  padding: 0.75em;
+  border: 1px solid var(--md-table-border);
+  text-align: left;
+}
+
+.markdown-content table th {
+  background-color: var(--md-table-stripe);
+  font-weight: 600;
+}
+
+.markdown-content table tr:nth-child(even) {
+  background-color: var(--md-table-stripe);
+}
+
+/* Lists */
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 1.5em;
+  margin: 1em 0;
+}
+
+.markdown-content li {
+  margin: 0.5em 0;
+}
+
+/* Meta information */
+.markdown-meta {
+  margin-bottom: 2em;
+  padding-bottom: 1em;
+  border-bottom: 1px solid var(--md-border);
+}
+
+.markdown-meta .meta-item {
+  display: inline-block;
+  margin-right: 1.5em;
+  color: var(--md-text);
+  opacity: 0.8;
+  font-size: 0.9em;
+}
+
+/* Tags */
+.markdown-tags {
+  margin-top: 2em;
+}
+
+.markdown-tags .tag {
+  display: inline-block;
+  padding: 0.3em 0.8em;
+  margin: 0.2em;
+  background-color: var(--md-code-bg);
+  border-radius: 15px;
+  font-size: 0.85em;
+  color: var(--md-text);
+  text-decoration: none;
+  transition: background-color 0.2s ease;
+}
+
+.markdown-tags .tag:hover {
+  background-color: var(--md-link);
+  color: var(--md-bg);
+}

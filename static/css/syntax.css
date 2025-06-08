@@ -1,0 +1,190 @@
+/* Light theme syntax highlighting */
+:root {
+    --syntax-plain: #24292e;
+    --syntax-comment: #6a737d;
+    --syntax-keyword: #d73a49;
+    --syntax-function: #6f42c1;
+    --syntax-string: #032f62;
+    --syntax-number: #005cc5;
+    --syntax-class: #6f42c1;
+    --syntax-type: #d73a49;
+    --syntax-builtin: #005cc5;
+    --syntax-property: #005cc5;
+    --syntax-namespace: #22863a;
+    --syntax-variable: #24292e;
+    --syntax-regexp: #032f62;
+}
+
+/* Dark theme syntax highlighting */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --syntax-plain: #e1e4e8;
+        --syntax-comment: #6a737d;
+        --syntax-keyword: #f97583;
+        --syntax-function: #b392f0;
+        --syntax-string: #9ecbff;
+        --syntax-number: #79b8ff;
+        --syntax-class: #b392f0;
+        --syntax-type: #f97583;
+        --syntax-builtin: #79b8ff;
+        --syntax-property: #79b8ff;
+        --syntax-namespace: #85e89d;
+        --syntax-variable: #e1e4e8;
+        --syntax-regexp: #9ecbff;
+    }
+}
+
+/* Code block syntax highlighting */
+.markdown-content .token.comment,
+.markdown-content .token.prolog,
+.markdown-content .token.doctype,
+.markdown-content .token.cdata {
+    color: var(--syntax-comment);
+    font-style: italic;
+}
+
+.markdown-content .token.namespace {
+    color: var(--syntax-namespace);
+}
+
+.markdown-content .token.string,
+.markdown-content .token.attr-value {
+    color: var(--syntax-string);
+}
+
+.markdown-content .token.punctuation {
+    color: var(--syntax-plain);
+}
+
+.markdown-content .token.operator {
+    color: var(--syntax-keyword);
+}
+
+.markdown-content .token.boolean,
+.markdown-content .token.number {
+    color: var(--syntax-number);
+}
+
+.markdown-content .token.property {
+    color: var(--syntax-property);
+}
+
+.markdown-content .token.tag {
+    color: var(--syntax-keyword);
+}
+
+.markdown-content .token.function {
+    color: var(--syntax-function);
+}
+
+.markdown-content .token.tag .token.punctuation {
+    color: var(--syntax-plain);
+}
+
+.markdown-content .token.keyword {
+    color: var(--syntax-keyword);
+    font-weight: bold;
+}
+
+.markdown-content .token.class-name {
+    color: var(--syntax-class);
+}
+
+.markdown-content .token.regex,
+.markdown-content .token.important {
+    color: var(--syntax-regexp);
+}
+
+.markdown-content .token.variable {
+    color: var(--syntax-variable);
+}
+
+.markdown-content .token.important,
+.markdown-content .token.bold {
+    font-weight: bold;
+}
+
+.markdown-content .token.italic {
+    font-style: italic;
+}
+
+/* Language-specific tweaks */
+.language-rust .keyword { color: var(--syntax-keyword); }
+.language-rust .function { color: var(--syntax-function); }
+.language-rust .type-definition { color: var(--syntax-type); }
+
+.language-typescript .keyword { color: var(--syntax-keyword); }
+.language-typescript .class-name { color: var(--syntax-class); }
+
+.language-markdown .title { color: var(--syntax-class); }
+.language-markdown .url { color: var(--syntax-string); }
+
+/* Line highlighting and line numbers */
+.markdown-content pre[class*="language-"] {
+    position: relative;
+    padding-left: 3.8em;
+    counter-reset: linenumber;
+}
+
+.markdown-content pre[class*="language-"] > code {
+    position: relative;
+    white-space: inherit;
+}
+
+.markdown-content .line-numbers-rows {
+    position: absolute;
+    pointer-events: none;
+    top: 0;
+    font-size: 100%;
+    left: -3.8em;
+    width: 3em;
+    letter-spacing: -1px;
+    border-right: 1px solid var(--md-border);
+    user-select: none;
+}
+
+.markdown-content .line-numbers-rows > span {
+    display: block;
+    counter-increment: linenumber;
+}
+
+.markdown-content .line-numbers-rows > span:before {
+    content: counter(linenumber);
+    color: var(--syntax-comment);
+    display: block;
+    padding-right: 0.8em;
+    text-align: right;
+}
+
+/* Copy button */
+.markdown-content pre {
+    position: relative;
+}
+
+.markdown-content .copy-button {
+    position: absolute;
+    top: 0.5em;
+    right: 0.5em;
+    padding: 0.3em 0.6em;
+    border: 1px solid var(--md-border);
+    border-radius: 4px;
+    background: var(--md-bg);
+    color: var(--md-text);
+    font-size: 0.8em;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.markdown-content pre:hover .copy-button {
+    opacity: 1;
+}
+
+.markdown-content .copy-button:hover {
+    background: var(--md-border);
+}
+
+.markdown-content .copy-button.copied {
+    border-color: var(--md-link);
+    color: var(--md-link);
+}

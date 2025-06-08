@@ -7,8 +7,11 @@
     @if(description) {
         <meta name="description" content="@{description}">
     }
+    <link rel="stylesheet" href="/css/markdown.css">
+    <link rel="stylesheet" href="/css/syntax.css">
     <style>
         :root {
+            /* Base colors */
             --text-color: #2c3e50;
             --link-color: #3498db;
             --hover-color: #2980b9;
@@ -16,6 +19,20 @@
             --border-color: #e9ecef;
             --code-bg: #282c34;
             --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --text-color: #e2e8f0;
+                --link-color: #63b3ed;
+                --hover-color: #90cdf4;
+                --sidebar-bg: #2d3748;
+                --border-color: #4a5568;
+                --code-bg: #1a202c;
+            }
+            body {
+                background: #1a202c;
+            }
         }
 
         body {
@@ -212,6 +229,66 @@
         .task-list-item-checkbox {
             margin-right: 0.5rem;
         }
+
+        /* Markdown styles */
+        .markdown-content h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-color);
+        }
+
+        .markdown-content h2 {
+            font-size: 2rem;
+            margin: 1.5rem 0 1rem;
+            color: var(--text-color);
+        }
+
+        .markdown-content h3 {
+            font-size: 1.75rem;
+            margin: 1.25rem 0 0.75rem;
+            color: var(--text-color);
+        }
+
+        .markdown-content p {
+            margin: 0 0 1.5rem;
+            color: var(--text-color);
+        }
+
+        .markdown-content a {
+            color: var(--link-color);
+            text-decoration: underline;
+        }
+
+        .markdown-content a:hover {
+            color: var(--hover-color);
+            text-decoration: none;
+        }
+
+        .markdown-meta {
+            color: #6c757d;
+            margin-bottom: 2rem;
+        }
+
+        .meta-item {
+            margin-right: 1rem;
+        }
+
+        .markdown-tags {
+            margin: 1.5rem 0;
+        }
+
+        .tag {
+            background: var(--sidebar-bg);
+            color: var(--text-color);
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            text-decoration: none;
+            margin-right: 0.5rem;
+        }
+
+        .tag:hover {
+            background: var(--border-color);
+        }
     </style>
 </head>
 <body>
@@ -223,18 +300,26 @@
     </aside>
 
     <main>
-        <article>
-            <div class="post-meta">
-                <span class="date">@{date}</span>
+        <article class="markdown-content">
+            <div class="markdown-meta">
+                <span class="meta-item">@{date}</span>
                 @if(author) {
-                    <span class="author">by @{author}</span>
+                    <span class="meta-item">By @{author}</span>
+                }
+                @if(readingTime) {
+                    <span class="meta-item">@{readingTime} min read</span>
                 }
             </div>
 
-            <div class="blog-content">
-                @{yield}
-            </div>
-            
+            @{content}
+
+            @if(tags) {
+                <div class="markdown-tags">
+                    @for(tag in tags) {
+                        <a href="/tags/@{tag}" class="tag">#@{tag}</a>
+                    }
+                </div>
+            }
             <nav class="blog-nav">
                 @if(prev_post.url) {
                     <a href="@{prev_post.url}" class="nav-link prev-post">
@@ -271,11 +356,54 @@
             }
         });
 
-        // Add target="_blank" to external links
-        document.querySelectorAll('.blog-content a').forEach(link => {
-            if (link.hostname !== window.location.hostname) {
+        // Add target="_blank" to external links in markdown content
+        document.querySelectorAll('.markdown-content a').forEach(link => {
+            if (link.hostname && link.hostname !== window.location.hostname) {
                 link.setAttribute('target', '_blank');
                 link.setAttribute('rel', 'noopener noreferrer');
+            }
+        });
+
+        // Add copy buttons to code blocks
+        document.querySelectorAll('pre').forEach(block => {
+            const button = document.createElement('button');
+            button.className = 'copy-button';
+            button.textContent = 'Copy';
+            
+            button.addEventListener('click', async () => {
+                const code = block.querySelector('code').textContent;
+                try {
+                    await navigator.clipboard.writeText(code);
+                    button.textContent = 'Copied!';
+                    button.classList.add('copied');
+                    setTimeout(() => {
+                        button.textContent = 'Copy';
+                        button.classList.remove('copied');
+                    }, 2000);
+                } catch (err) {
+                    console.error('Failed to copy code:', err);
+                    button.textContent = 'Error';
+                    setTimeout(() => {
+                        button.textContent = 'Copy';
+                    }, 2000);
+                }
+            });
+            
+            block.appendChild(button);
+        });
+
+        // Add line numbers to code blocks
+        document.querySelectorAll('pre > code').forEach(code => {
+            const parent = code.parentElement;
+            if (!parent.classList.contains('line-numbers')) {
+                parent.classList.add('line-numbers');
+                const lines = code.textContent.split('\n').length;
+                const numbers = document.createElement('span');
+                numbers.className = 'line-numbers-rows';
+                for (let i = 0; i < lines; i++) {
+                    numbers.appendChild(document.createElement('span'));
+                }
+                code.appendChild(numbers);
             }
         });
     </script>
