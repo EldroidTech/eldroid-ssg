@@ -73,6 +73,56 @@ impl BlogPost {
         let human_time = HumanTime::from(date);
         Ok(human_time.to_string())
     }
+
+    pub fn generate_json_ld(&self, site_name: &str, base_url: &str) -> Result<String> {
+        let mut json_ld = serde_json::json!({
+            "@context": "https://schema.org",
+            "@type": "Article",
+            "headline": self.front_matter.title,
+            "datePublished": self.front_matter.date,
+            "dateModified": self.front_matter.date,
+            "url": format!("{}{}", base_url.trim_end_matches('/'), self.url),
+            "publisher": {
+                "@type": "Organization",
+                "name": site_name,
+                "url": base_url
+            }
+        });
+
+        // Add optional fields if they exist
+        if let Some(description) = &self.front_matter.description {
+            json_ld.as_object_mut().unwrap()
+                .insert("description".to_string(), serde_json::Value::String(description.clone()));
+        }
+
+        if let Some(author) = &self.front_matter.author {
+            json_ld.as_object_mut().unwrap()
+                .insert("author".to_string(), serde_json::json!({
+                    "@type": "Person",
+                    "name": author
+                }));
+        }
+
+        if let Some(image) = &self.front_matter.image {
+            json_ld.as_object_mut().unwrap()
+                .insert("image".to_string(), serde_json::json!([
+                    format!("{}{}", base_url.trim_end_matches('/'), image)
+                ]));
+        }
+
+        // Add keywords if available
+        if let Some(keywords) = &self.front_matter.keywords {
+            json_ld.as_object_mut().unwrap()
+                .insert("keywords".to_string(), serde_json::Value::String(keywords.join(", ")));
+        }
+
+        // Generate article body from markdown content
+        let text_content = html2text::from_read(self.html_content.as_bytes(), 80);
+        json_ld.as_object_mut().unwrap()
+            .insert("articleBody".to_string(), serde_json::Value::String(text_content));
+
+        Ok(serde_json::to_string_pretty(&json_ld)?)
+    }
 }
 
 pub fn markdown_to_html(content: &str) -> String {
@@ -225,9 +275,12 @@ impl BlogProcessor {
             seo_comment.push_str(&format!("  \"canonical_url\": \"{}\",\n", canonical));
         }
 
-        if let Some(structured_data) = &post.front_matter.structured_data {
-            seo_comment.push_str(&format!("  \"structured_data\": {},\n", structured_data));
-        }
+        // Generate JSON-LD if not provided in front matter
+        let structured_data = match &post.front_matter.structured_data {
+            Some(data) => data.clone(),
+            None => post.generate_json_ld("Eldroid SSG", "https://eldroid-ssg.dev")?
+        };
+        seo_comment.push_str(&format!("  \"structured_data\": {},\n", structured_data));
 
         if let Some(image) = &post.front_matter.image {
             variables.insert("og_image".to_string(), image.clone());
@@ -239,6 +292,7 @@ impl BlogProcessor {
 
         seo_comment.push_str("}} -->\n");
         variables.insert("seo_meta".to_string(), seo_comment);
+        variables.insert("json_ld".to_string(), structured_data);
         
         // Navigation
         if let Some(prev) = prev_post {
