@@ -24,6 +24,14 @@ pub struct BlogFrontMatter {
     pub tags: Vec<String>,
     #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
+    pub keywords: Option<Vec<String>>,
+    #[serde(default)]
+    pub canonical_url: Option<String>,
+    #[serde(default)]
+    pub structured_data: Option<String>,
+    #[serde(default)]
+    pub image: Option<String>, // For og:image and twitter:image
 }
 
 #[derive(Debug)]
@@ -195,15 +203,44 @@ impl BlogProcessor {
         let mut variables = HashMap::new();
         variables.insert("title".to_string(), post.front_matter.title.clone());
         variables.insert("date".to_string(), post.formatted_date()?);
-        
-        if let Some(description) = &post.front_matter.description {
-            variables.insert("description".to_string(), description.clone());
+
+        // SEO metadata
+        let mut seo_comment = format!(
+            "<!-- SEO {{\n  \"title\": \"{}\",\n", 
+            &post.front_matter.title
+        );
+
+        if let Some(desc) = &post.front_matter.description {
+            variables.insert("description".to_string(), desc.clone());
+            seo_comment.push_str(&format!("  \"description\": \"{}\",\n", desc));
+        }
+
+        if let Some(keywords) = &post.front_matter.keywords {
+            seo_comment.push_str(&format!("  \"keywords\": {},\n", serde_json::to_string(keywords)?));
+        }
+
+        seo_comment.push_str(&format!("  \"url\": \"{}\",\n", &post.url));
+
+        if let Some(canonical) = &post.front_matter.canonical_url {
+            seo_comment.push_str(&format!("  \"canonical_url\": \"{}\",\n", canonical));
+        }
+
+        if let Some(structured_data) = &post.front_matter.structured_data {
+            seo_comment.push_str(&format!("  \"structured_data\": {},\n", structured_data));
+        }
+
+        if let Some(image) = &post.front_matter.image {
+            variables.insert("og_image".to_string(), image.clone());
         }
         
         if let Some(author) = &post.front_matter.author {
             variables.insert("author".to_string(), author.clone());
         }
+
+        seo_comment.push_str("}} -->\n");
+        variables.insert("seo_meta".to_string(), seo_comment);
         
+        // Navigation
         if let Some(prev) = prev_post {
             variables.insert("prev_post.url".to_string(), prev.url.clone());
             variables.insert("prev_post.title".to_string(), prev.front_matter.title.clone());
@@ -225,7 +262,7 @@ impl BlogProcessor {
 
         // Process variables
         for (key, value) in variables {
-            content = content.replace(&format!("@{{{}}}", key), &value);
+            content = content.replace(&format!("@{{{}}}",key), &value);
         }
 
         Ok(content)

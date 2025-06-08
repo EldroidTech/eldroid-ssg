@@ -1,11 +1,42 @@
 ---
 title: Getting Started with Eldroid SSG
+description: Learn how to build lightning-fast static websites using Eldroid SSG, a modern static site generator written in Rust. This comprehensive guide covers installation, basic usage, and best practices.
 author: Roy
 date: 2025-06-08T11:00:00Z
 tags:
   - tutorial
   - eldroid-ssg
-description: Learn how to get started with Eldroid SSG and create your first site
+  - static-site
+keywords:
+  - eldroid-ssg
+  - static site generator
+  - rust
+  - tutorial
+  - documentation
+  - quick start
+canonical_url: https://eldroid-ssg.dev/blog/getting-started
+image: /images/getting-started-hero.jpg
+structured_data: |
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Getting Started with Eldroid SSG",
+    "description": "Learn how to build lightning-fast static websites using Eldroid SSG, a modern static site generator written in Rust.",
+    "author": {
+      "@type": "Person",
+      "name": "Roy"
+    },
+    "datePublished": "2025-06-08T11:00:00Z",
+    "image": "/images/getting-started-hero.jpg",
+    "publisher": {
+      "@type": "Organization",
+      "name": "Eldroid SSG",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "/images/eldroid-logo.png"
+      }
+    }
+  }
 ---
 
 # Getting Started with Eldroid SSG
