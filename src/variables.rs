@@ -11,7 +11,7 @@ lazy_static! {
     static ref VAR_REGEX: Regex = Regex::new(r#"@\{var\(["']([^"']+)["']\)\}"#).unwrap();
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct Variables {
     #[serde(flatten)]
     vars: HashMap<String, toml::Value>,

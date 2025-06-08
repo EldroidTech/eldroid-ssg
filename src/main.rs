@@ -1,11 +1,12 @@
 use clap::Parser;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use parking_lot::Mutex;
 use rayon::prelude::*;
 use log::{error, info};
 use tokio;
+use anyhow::{Result, anyhow};
 
 use eldroid_ssg::{
     config::{CliArgs, BuildConfig},
@@ -17,6 +18,8 @@ use eldroid_ssg::{
     variables::load_variables,
     macros::MacroProcessor,
     watcher::DevServer,
+    BlogPost,
+    BlogProcessor,
 };
 
 fn walk_dir_recursive(dir: &Path) -> Vec<std::path::PathBuf> {
@@ -26,7 +29,7 @@ fn walk_dir_recursive(dir: &Path) -> Vec<std::path::PathBuf> {
             let path = entry.path();
             if path.is_dir() {
                 files.extend(walk_dir_recursive(&path));
-            } else if path.is_file() && path.extension().map_or(false, |ext| ext == "html") {
+            } else if path.is_file() && path.extension().map_or(false, |ext| ext == "html" || ext == "md") {
                 files.push(path);
             }
         }
@@ -104,18 +107,22 @@ async fn main() {
     );
 
     // Start development server if watch mode is enabled
-    if config.watch {
+    if args.watch {
+        // Start watcher in development mode
         let dev_server = DevServer::new(
-            &args.input_dir,
-            &args.output_dir,
-            &args.components_dir,
+            args.input_dir.clone(),
+            args.output_dir.clone(),
+            format!("{}/components", args.input_dir), // Components directory
             args.port,
-            args.ws_port,
+            args.ws_port
         );
-
+        
         // Process files initially
-        process_files(&args, &config, &html_gen, &minifier, &analyzer, &seo_config, &perf_dir);
-
+        if let Err(e) = process_files(&args, &config, &html_gen, &minifier, &analyzer, &seo_config, &perf_dir) {
+            error!("Failed to process files: {}", e);
+            std::process::exit(1);
+        }
+        
         // Start the development server
         if let Err(e) = dev_server.start().await {
             error!("Failed to start development server: {}", e);
@@ -123,7 +130,10 @@ async fn main() {
         }
     } else {
         // One-time build
-        process_files(&args, &config, &html_gen, &minifier, &analyzer, &seo_config, &perf_dir);
+        if let Err(e) = process_files(&args, &config, &html_gen, &minifier, &analyzer, &seo_config, &perf_dir) {
+            error!("Failed to process files: {}", e);
+            std::process::exit(1);
+        }
     }
 }
 
@@ -135,21 +145,37 @@ fn process_files(
     analyzer: &Option<Analyzer>,
     seo_config: &Option<SEOConfig>,
     perf_dir: &str,
-) {
+) -> Result<()> {
     let processed_files = Arc::new(Mutex::new(Vec::new()));
     let content_files = walk_dir_recursive(Path::new(&args.input_dir));
-    content_files.par_iter().for_each(|file_path| {
-        if let Ok(content) = fs::read_to_string(file_path) {
-            let mut final_content = if let Some(seo) = &seo_config {
-                generate_html_with_seo(&content, seo, &html_gen)
+    let mut blog_processor = BlogProcessor::with_option_components(
+        Path::new(&args.input_dir).to_path_buf(),
+        html_gen.get_variables().clone()
+    );
+    
+    // Load posts for next/prev navigation
+    blog_processor.load_posts()?;
+    
+    let file_results: Vec<Result<PathBuf>> = content_files
+        .par_iter()
+        .map(|file_path| -> Result<PathBuf> {
+            // Read content
+            let content = fs::read_to_string(file_path)?;
+            
+            // Process content based on file type
+            let processed_content = if file_path.extension().map_or(false, |ext| ext == "md") {
+                let post = BlogPost::from_file(file_path, Path::new(&args.input_dir))?;
+                blog_processor.process_post(&post)?
+            } else if let Some(seo) = seo_config {
+                generate_html_with_seo(&content, seo, html_gen)
             } else {
                 html_gen.generate(&content)
             };
 
-            // Analyze if enabled
-            if let Some(analyzer) = &analyzer {
+            // Run analysis if enabled
+            if let Some(analyzer) = analyzer {
                 if config.security_checks {
-                    let security_report = analyzer.analyze_security(&final_content, file_path);
+                    let security_report = analyzer.analyze_security(&processed_content, file_path);
                     if !security_report.mixed_content.is_empty() {
                         error!("Mixed content found in {}: {:?}", file_path.display(), security_report.mixed_content);
                     }
@@ -157,61 +183,70 @@ fn process_files(
                         error!("Insecure links found in {}: {:?}", file_path.display(), security_report.insecure_links);
                     }
                 }
-
+                
                 if config.analyze_performance {
-                    let perf_report = analyzer.analyze_performance(&final_content, file_path);
-                    let perf_file = Path::new(&perf_dir)
+                    let perf_report = analyzer.analyze_performance(&processed_content, file_path);
+                    let perf_file = Path::new(perf_dir)
                         .join(file_path.file_name().unwrap())
                         .with_extension("perf.txt");
-                    
-                    if let Err(e) = fs::write(&perf_file, format!(
-                        "Performance Analysis for {}\n\n{}\n\nRecommendations:\n{}", 
+                    fs::write(&perf_file, format!(
+                        "Performance Analysis for {}\n\n{}\n\nRecommendations:\n{}",
                         file_path.display(),
                         perf_report.details,
                         perf_report.recommendations.join("\n")
-                    )) {
-                        error!("Failed to write performance report: {}", e);
-                    }
+                    ))?;
                 }
             }
 
-            // Minify if enabled
-            if let Some(minifier) = &minifier {
-                final_content = minifier.minify_html(&final_content);
-            }
+            // Apply minification if enabled
+            let final_content = if let Some(minifier) = minifier {
+                minifier.minify_html(&processed_content)
+            } else {
+                processed_content
+            };
 
+            // Write output file
             let out_path = Path::new(&args.output_dir)
-                .join(file_path.strip_prefix(&args.input_dir).unwrap());
-
+                .join(file_path.strip_prefix(&args.input_dir)?);
             if let Some(parent) = out_path.parent() {
-                if let Err(e) = fs::create_dir_all(parent) {
-                    error!("Failed to create directory {}: {}", parent.display(), e);
-                    return;
-                }
+                fs::create_dir_all(parent)?;
             }
+            
+            // Use .html extension for markdown files
+            let out_path = if file_path.extension().map_or(false, |ext| ext == "md") {
+                out_path.with_extension("html")
+            } else {
+                out_path
+            };
 
-            if let Err(e) = fs::write(&out_path, final_content) {
-                error!("Failed to write file {}: {}", out_path.display(), e);
-                return;
-            }
+            fs::write(&out_path, final_content)?;
+            processed_files.lock().push(out_path.clone());
+            Ok(out_path)
+        })
+        .collect();
 
-            processed_files.lock().push(out_path);
+    // Check for errors
+    let errors: Vec<_> = file_results.iter()
+        .filter_map(|r| r.as_ref().err())
+        .collect();
+    
+    if !errors.is_empty() {
+        error!("Failed to process some files:");
+        for err in errors {
+            error!("  {}", err);
         }
-    });
+        return Err(anyhow!("Some files failed to process"));
+    }
 
     // Generate SEO files if enabled
     if config.enable_seo {
-        if let Some(seo) = &seo_config {
+        if let Some(seo) = seo_config {
             let processed = processed_files.lock();
-            if let Err(e) = generate_sitemap(&processed, seo, &args.output_dir) {
-                error!("Failed to generate sitemap: {}", e);
-            }
-            if let Err(e) = generate_rss(&processed, seo, &args.output_dir) {
-                error!("Failed to generate RSS feed: {}", e);
-            }
-            if let Err(e) = generate_robots_txt(seo, &args.output_dir) {
-                error!("Failed to generate robots.txt: {}", e);
-            }
+            generate_sitemap(&processed, seo, &args.output_dir)?;
+            generate_rss(&processed, seo, &args.output_dir)?;
+            generate_robots_txt(seo, &args.output_dir)?;
         }
     }
+
+    Ok(())
 }

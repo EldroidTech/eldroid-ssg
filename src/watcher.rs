@@ -10,6 +10,17 @@ use portpicker::pick_unused_port;
 use parking_lot::RwLock;
 use std::collections::HashSet;
 use std::time::Duration;
+use std::fs;
+use std::io;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum DevServerError {
+    #[error("Failed to create directory: {0}")]
+    DirectoryCreation(#[from] io::Error),
+    #[error("Watcher error: {0}")]
+    Watcher(#[from] notify::Error),
+}
 
 #[derive(Debug, Clone)]
 pub struct FileChange {
@@ -50,8 +61,33 @@ impl DevServer {
             changed_files: Arc::new(RwLock::new(HashSet::new())),
         }
     }
+    
+    fn ensure_directory(&self, path: &PathBuf) -> Result<(), DevServerError> {
+        if !path.exists() {
+            fs::create_dir_all(path)?;
+            info!("Created directory: {}", path.display());
+        }
+        Ok(())
+    }
 
-    pub async fn start(&self) -> notify::Result<()> {
+    fn initialize_directories(&self) -> Result<(), DevServerError> {
+        // Ensure all required directories exist
+        self.ensure_directory(&self.input_dir)?;
+        self.ensure_directory(&self.output_dir)?;
+        self.ensure_directory(&self.components_dir)?;
+        
+        info!("Initialized directory structure:");
+        info!("  Input dir:      {}", self.input_dir.display());
+        info!("  Output dir:     {}", self.output_dir.display());
+        info!("  Components dir: {}", self.components_dir.display());
+        
+        Ok(())
+    }
+
+    pub async fn start(&self) -> Result<(), DevServerError> {
+        // Initialize directories first
+        self.initialize_directories()?;
+        
         // Set up file watcher
         let (tx, _) = broadcast::channel(100);
         let tx_clone = tx.clone();
@@ -99,7 +135,7 @@ impl DevServer {
         Ok(())
     }
 
-    fn setup_watcher(&self, tx: broadcast::Sender<FileChange>) -> notify::Result<RecommendedWatcher> {
+    fn setup_watcher(&self, tx: broadcast::Sender<FileChange>) -> Result<RecommendedWatcher, DevServerError> {
         let changed_files = self.changed_files.clone();
         let mut last_event = std::time::Instant::now();
         let debounce_duration = Duration::from_millis(100);
@@ -130,6 +166,8 @@ impl DevServer {
                     }
                 }
                 last_event = now;
+            } else if let Err(e) = res {
+                error!("File watcher error: {}", e);
             }
         })?;
 
@@ -142,5 +180,62 @@ impl DevServer {
 
     pub fn clear_changed_files(&self) {
         self.changed_files.write().clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_ensure_directory() {
+        let temp = tempdir().unwrap();
+        let test_dir = temp.path().join("test");
+        let server = DevServer::new(
+            test_dir.clone(),
+            temp.path().join("output"),
+            temp.path().join("components"),
+            Some(8080),
+            Some(8081),
+        );
+
+        // Test directory creation
+        assert!(!test_dir.exists());
+        server.ensure_directory(&test_dir).unwrap();
+        assert!(test_dir.exists());
+
+        // Test idempotency
+        server.ensure_directory(&test_dir).unwrap();
+        assert!(test_dir.exists());
+    }
+
+    #[test]
+    fn test_initialize_directories() {
+        let temp = tempdir().unwrap();
+        let input_dir = temp.path().join("input");
+        let output_dir = temp.path().join("output");
+        let components_dir = temp.path().join("components");
+
+        let server = DevServer::new(
+            input_dir.clone(),
+            output_dir.clone(),
+            components_dir.clone(),
+            Some(8080),
+            Some(8081),
+        );
+
+        // Test initial state
+        assert!(!input_dir.exists());
+        assert!(!output_dir.exists());
+        assert!(!components_dir.exists());
+
+        // Initialize directories
+        server.initialize_directories().unwrap();
+
+        // Verify all directories were created
+        assert!(input_dir.exists());
+        assert!(output_dir.exists());
+        assert!(components_dir.exists());
     }
 }

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Getting Started with Eldroid SSG - Blog</title>
+    @if(description) {
+        <meta name="description" content="Learn how to get started with Eldroid SSG and create your first site">
+    }
+    <style>
+        :root {
+            --text-color: #2c3e50;
+            --link-color: #3498db;
+            --hover-color: #2980b9;
+            --sidebar-bg: #f8f9fa;
+            --border-color: #e9ecef;
+            --code-bg: #282c34;
+            --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            margin: 0;
+            display: grid;
+            grid-template-columns: minmax(250px, 1fr) minmax(auto, 3fr);
+            gap: 2rem;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--sidebar-bg);
+            padding: 2rem;
+            border-right: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .nav-tree {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .nav-tree li {
+            margin: 0.5rem 0;
+        }
+
+        .nav-tree a {
+            color: var(--text-color);
+            text-decoration: none;
+            display: block;
+            padding: 0.5rem;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .nav-tree a:hover,
+        .nav-tree a.active {
+            background: var(--border-color);
+            color: var(--link-color);
+        }
+
+        /* Main content */
+        main {
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        article {
+            margin-bottom: 4rem;
+        }
+
+        .post-meta {
+            color: #6c757d;
+            margin-bottom: 2rem;
+        }
+
+        .post-meta span {
+            margin-right: 1rem;
+        }
+
+        .blog-content {
+            margin-bottom: 3rem;
+        }
+
+        .blog-content h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .blog-content h2 {
+            font-size: 1.75rem;
+            margin: 2rem 0 1rem;
+        }
+
+        .blog-content a {
+            color: var(--link-color);
+            text-decoration: none;
+        }
+
+        .blog-content a:hover {
+            color: var(--hover-color);
+            text-decoration: underline;
+        }
+
+        /* Code blocks */
+        pre {
+            background: var(--code-bg);
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+        }
+
+        code {
+            font-family: var(--font-mono);
+            font-size: 0.9em;
+        }
+
+        :not(pre) > code {
+            background: var(--sidebar-bg);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+        }
+
+        .highlight {
+            margin: 0;
+            color: #abb2bf;
+        }
+
+        /* Navigation between posts */
+        .blog-nav {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .nav-link {
+            color: var(--link-color);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--link-color);
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .nav-link:hover {
+            background: var(--link-color);
+            color: white;
+        }
+
+        .prev-post {
+            margin-right: auto;
+        }
+
+        .next-post {
+            margin-left: auto;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            body {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: relative;
+                height: auto;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            main {
+                padding: 1rem;
+            }
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+        }
+
+        th, td {
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+        }
+
+        th {
+            background: var(--sidebar-bg);
+        }
+
+        /* Task lists */
+        .task-list {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .task-list-item {
+            margin: 0.5rem 0;
+        }
+
+        .task-list-item-checkbox {
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <h1>Blog</h1>
+        <nav>
+            <ul class="nav-tree"><li><a href="/blog/getting-started">Getting Started with Eldroid SSG</a></li><li><a href="/blog/welcome">Welcome to My Blog</a></li><li><a href="/blog/second-post">Second Blog Post</a></li><li><a href="/blog/first-post">First Blog Post</a></li></ul>
+        </nav>
+    </aside>
+
+    <main>
+        <article>
+            <div class="post-meta">
+                <span class="date">3 hours ago</span>
+                @if(author) {
+                    <span class="author">by Roy</span>
+                }
+            </div>
+
+            <div class="blog-content">
+                <h1>Getting Started with Eldroid SSG</h1>
+<p>In this post, I'll walk you through creating your first website with Eldroid SSG. You'll learn about the basic concepts and how to set up your development environment.</p>
+<h2>Prerequisites</h2>
+<p>Before we begin, make sure you have:</p>
+<ul>
+<li>Rust installed (1.75 or later)</li>
+<li>Basic knowledge of HTML and Markdown</li>
+<li>A code editor (VS Code recommended)</li>
+</ul>
+<h2>Installation</h2>
+<p>Install Eldroid SSG using Cargo:</p>
+<pre><code class="language-bash"><pre style="background-color:#2b303b;">
+<span style="color:#8fa1b3;">cargo</span><span style="color:#c0c5ce;"> install eldroid-ssg
+</span></pre>
+</code></pre><h2>Project Structure</h2>
+<p>Create a new project:</p>
+<pre><code class="language-bash"><pre style="background-color:#2b303b;">
+<span style="color:#8fa1b3;">mkdir</span><span style="color:#c0c5ce;"> my-site
+</span><span style="color:#96b5b4;">cd</span><span style="color:#c0c5ce;"> my-site
+</span><span style="color:#c0c5ce;">
+</span><span style="color:#65737e;"># Create required directories
+</span><span style="color:#8fa1b3;">mkdir</span><span style="color:#bf616a;"> -p</span><span style="color:#c0c5ce;"> content/blog components static
+</span></pre>
+</code></pre><p>Your project structure should look like this:</p>
+<pre><code class="language-"><pre style="background-color:#2b303b;">
+<span style="color:#c0c5ce;">my-site/
+</span><span style="color:#c0c5ce;">├── content/          # Content files (.html, .md)
+</span><span style="color:#c0c5ce;">│   ├── index.html    # Site homepage
+</span><span style="color:#c0c5ce;">│   └── blog/         # Blog posts
+</span><span style="color:#c0c5ce;">├── components/       # Reusable components
+</span><span style="color:#c0c5ce;">│   └── blog_layout.html
+</span><span style="color:#c0c5ce;">└── static/          # Static assets
+</span><span style="color:#c0c5ce;">    ├── css/
+</span><span style="color:#c0c5ce;">    ├── js/
+</span><span style="color:#c0c5ce;">    └── images/
+</span></pre>
+</code></pre><h2>Next Steps</h2>
+<p>In the next tutorial, we'll cover:</p>
+<ul>
+<li>Creating custom components</li>
+<li>Styling your site</li>
+<li>Adding advanced features</li>
+<li>Deploying to production</li>
+</ul>
+
+            </div>
+            
+            <nav class="blog-nav">
+                @if(prev_post.url) {
+                    <a href="/blog/welcome" class="nav-link prev-post">
+                        ← Welcome to My Blog
+                    </a>
+                }
+                @if(next_post.url) {
+                    <a href="@{next_post.url}" class="nav-link next-post">
+                        @{next_post.title} →
+                    </a>
+                }
+            </nav>
+        </article>
+    </main>
+
+    <script>
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                const prevLink = document.querySelector('.prev-post');
+                if (prevLink) prevLink.click();
+            } else if (e.key === 'ArrowRight') {
+                const nextLink = document.querySelector('.next-post');
+                if (nextLink) nextLink.click();
+            }
+        });
+
+        // Highlight current page in navigation
+        const currentPath = window.location.pathname;
+        const navLinks = document.querySelectorAll('.nav-tree a');
+        navLinks.forEach(link => {
+            if (link.getAttribute('href') === currentPath) {
+                link.classList.add('active');
+            }
+        });
+
+        // Add target="_blank" to external links
+        document.querySelectorAll('.blog-content a').forEach(link => {
+            if (link.hostname !== window.location.hostname) {
+                link.setAttribute('target', '_blank');
+                link.setAttribute('rel', 'noopener noreferrer');
+            }
+        });
+    </script>
+</body>
+</html>

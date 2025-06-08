@@ -43,6 +43,14 @@ impl HtmlGenerator {
 
         processed
     }
+
+    pub fn get_variables(&self) -> &Option<Variables> {
+        &self.variables
+    }
+
+    pub fn get_macro_processor(&self) -> &Option<MacroProcessor> {
+        &self.macro_processor
+    }
 }
 
 pub fn generate_html_with_seo(content: &str, site_seo: &SEOConfig, html_gen: &HtmlGenerator) -> String {
