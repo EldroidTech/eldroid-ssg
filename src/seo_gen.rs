@@ -113,7 +113,7 @@ pub fn generate_rss(processed_files: &[PathBuf], config: &SEOConfig, output_dir:
                         url_path,
                         yaml_content.metadata.description.unwrap_or_else(|| String::from("No description available")),
                         DateTime::parse_from_rfc3339(&yaml_content.metadata.date)
-                            .unwrap_or_else(|_| DateTime::<FixedOffset>::from_utc(
+                            .unwrap_or_else(|_| DateTime::from_naive_utc_and_offset(
                                 Utc::now().naive_utc(),
                                 FixedOffset::east_opt(0).unwrap()
                             ))

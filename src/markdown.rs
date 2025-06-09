@@ -117,7 +117,8 @@ impl BlogPost {
         }
 
         // Generate article body from markdown content
-        let text_content = html2text::from_read(self.html_content.as_bytes(), 80);
+        let text_content = html2text::from_read(self.html_content.as_bytes(), 80)
+            .unwrap_or_else(|_| String::new());
         json_ld.as_object_mut().unwrap()
             .insert("articleBody".to_string(), serde_json::Value::String(text_content));
 
