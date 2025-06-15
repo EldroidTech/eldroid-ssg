@@ -14,11 +14,12 @@ impl Default for Minifier {
     fn default() -> Self {
         Self {
             html_config: minify_html::Cfg {
-                do_not_minify_doctype: true,
-                ensure_spec_compliant_unquoted_attribute_values: true,
+                minify_doctype: false, // replaces do_not_minify_doctype: true
+                allow_noncompliant_unquoted_attribute_values: false, // replaces ensure_spec_compliant_unquoted_attribute_values: true
+                allow_removing_spaces_between_attributes: false, // replaces keep_spaces_between_attributes: true
+                allow_optimal_entities: false, // optional, default is fine
                 keep_closing_tags: true,
                 keep_html_and_head_opening_tags: true,
-                keep_spaces_between_attributes: true,
                 keep_comments: false,
                 keep_ssi_comments: false,
                 minify_css: true,
