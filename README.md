@@ -8,8 +8,8 @@ A modern, blazing-fast static site generator written in Rust. It features:
 - Global macros system
 - Security and performance analysis
 - Live development server with WebSocket-based hot reload
-- **Built-in diagram support for Mermaid, Graphviz, and PlantUML in markdown**
-- **Template generator for instant starter sites**
+- Built-in diagram support for Mermaid, Graphviz, and PlantUML in markdown
+- Template generator for instant starter sites
 
 ## Quick Start
 
