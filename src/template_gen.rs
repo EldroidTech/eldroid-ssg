@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::Path;
-use std::io::Write;
 
 pub fn generate_template_site(target_dir: &Path) -> std::io::Result<()> {
     // Create directories
