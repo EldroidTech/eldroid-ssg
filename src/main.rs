@@ -21,6 +21,7 @@ use eldroid_ssg::{
     BlogPost,
     BlogProcessor,
 };
+use eldroid_ssg::template_gen::generate_template_site;
 
 fn walk_dir_recursive(dir: &Path) -> Vec<std::path::PathBuf> {
     let mut files = Vec::new();
@@ -42,6 +43,26 @@ async fn main() {
     env_logger::init();
     // Parse command line arguments
     let args = CliArgs::parse();
+
+    // Handle subcommands
+    if let Some(cmd) = &args.command {
+        match cmd {
+            eldroid_ssg::config::Commands::InitTemplate { target } => {
+                let target_path = std::path::Path::new(target);
+                match generate_template_site(target_path) {
+                    Ok(_) => {
+                        println!("Template site generated at {}", target_path.display());
+                        std::process::exit(0);
+                    },
+                    Err(e) => {
+                        eprintln!("Failed to generate template site: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+        }
+    }
+
     let config = BuildConfig::from(&args);
     let perf_dir = format!("{}/performance", args.output_dir);
 

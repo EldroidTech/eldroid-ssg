@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use std::path::PathBuf;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -56,6 +56,19 @@ pub struct CliArgs {
     /// Live reload WebSocket port (random if not specified)
     #[arg(long)]
     pub ws_port: Option<u16>,
+
+    #[command(subcommand)]
+    pub command: Option<Commands>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    /// Generate a starter template site with sample pages, components, and blogs
+    InitTemplate {
+        /// Target directory for the generated site
+        #[arg(long, default_value = "sample-site")]
+        target: String,
+    },
 }
 
 #[derive(Debug, Deserialize)]

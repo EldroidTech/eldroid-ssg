@@ -242,3 +242,28 @@ RUST_LOG=debug eldroid-ssg --watch
 - GitHub Issues: Report bugs and feature requests
 - Documentation: Read the full docs
 - Community: Join our Discord server
+
+# Template Generator: Get Started Instantly
+
+Eldroid SSG includes a built-in template generator to help you get started fast. It creates a ready-to-use site with:
+- 2 sample webpages (Home, About)
+- 2 reusable components (Header, Footer)
+- 2 blog posts (with diagrams, SEO, and markdown features)
+- Example usage of diagrams, code blocks, tags, and more
+
+### Usage
+```bash
+eldroid-ssg init-template --target mysite
+cd mysite
+eldroid-ssg --watch
+```
+
+You can now customize your site by editing the generated files in `content/`, `components/`, and `static/`.
+
+### What’s Included?
+- **Home and About pages**: Showcases components and markdown.
+- **Header/Footer components**: Used in all pages for navigation and layout.
+- **Blog posts**: Demonstrate SEO, diagrams (Mermaid, Graphviz, PlantUML), tags, and code blocks.
+- **Custom CSS**: Example for easy theming.
+
+See the generated files for best practices and feature usage.

@@ -9,6 +9,7 @@ A modern, blazing-fast static site generator written in Rust. It features:
 - Security and performance analysis
 - Live development server with WebSocket-based hot reload
 - **Built-in diagram support for Mermaid, Graphviz, and PlantUML in markdown**
+- **Template generator for instant starter sites**
 
 ## Quick Start
 
@@ -16,9 +17,9 @@ A modern, blazing-fast static site generator written in Rust. It features:
 # Install Eldroid SSG
 cargo install eldroid-ssg
 
-# Create a new site
-mkdir my-site && cd my-site
-mkdir content components static
+# Generate a starter site with all features
+eldroid-ssg init-template --target mysite
+cd mysite
 
 # Start development server with hot reload
 eldroid-ssg --watch --port 3000

@@ -8,6 +8,7 @@ pub mod variables;
 pub mod macros;
 pub mod watcher;
 pub mod markdown;
+pub mod template_gen;
 
 // Re-export commonly used types
 pub use config::{CliArgs, BuildConfig};
