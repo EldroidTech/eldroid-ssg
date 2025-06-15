@@ -1,2 +1,34 @@
-/target
+# Eldroid SSG build output
 _site/
+public/
+
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# VS Code settings
+.vscode/
+.history/
+
+# Dependency lock files (optional, if you want to ignore them)
+/Cargo.lock
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Node/npm artifacts (if you use npm for static assets)
+/node_modules/
+npm-debug.log*
+
+# Backup files
+*~
+*.bak
+
+# Static asset cache
+static/cache/
