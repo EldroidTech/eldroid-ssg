@@ -370,6 +370,27 @@
         </article>
     </main>
 
+    <!-- Mermaid.js for diagram rendering -->
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+      mermaid.initialize({ startOnLoad: true });
+    </script>
+    <!-- Viz.js for Graphviz diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/dist/viz.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/dist/full.render.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.diagram-graphviz').forEach(function(el) {
+          try {
+            const svg = Viz(el.textContent, { format: 'svg', engine: 'dot' });
+            el.innerHTML = svg;
+          } catch (e) { el.innerHTML = '<pre>' + el.textContent + '</pre>'; }
+        });
+      });
+    </script>
+    <!-- PlantUML diagrams: For best results, use server-side rendering or a PlantUML proxy. -->
+    <!-- You can extend this with a PlantUML JS renderer or use an <img> with a PlantUML server URL. -->
+
     <script>
         // Keyboard navigation
         document.addEventListener('keydown', (e) => {

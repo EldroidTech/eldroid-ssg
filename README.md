@@ -8,6 +8,7 @@ A modern, blazing-fast static site generator written in Rust. It features:
 - Global macros system
 - Security and performance analysis
 - Live development server with WebSocket-based hot reload
+- **Built-in diagram support for Mermaid, Graphviz, and PlantUML in markdown**
 
 ## Quick Start
 
@@ -33,6 +34,7 @@ Full documentation is available in the `docs/` directory:
 - [Global Macros](docs/macros.md) - Macro system documentation
 - [SEO & Performance](docs/seo_performance.md) - SEO and performance optimization
 - [Development & Contribution](docs/development.md) - Development guide
+- [Diagrams](docs/diagrams.md) - Diagram support in markdown
 
 ## Key Features
 
@@ -59,6 +61,11 @@ Full documentation is available in the `docs/` directory:
 - Structured data support
 - Sitemap and robots.txt generation
 - Social media tags
+
+### Diagram Support
+- Render diagrams from markdown code blocks
+- Supports `mermaid`, `graphviz`/`dot`, and `plantuml`
+- Configurable diagram rendering options
 
 ## Project Structure
 

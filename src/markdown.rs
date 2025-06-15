@@ -148,7 +148,6 @@ pub fn markdown_to_html(content: &str) -> String {
     
     for event in parser {
         match event {
-            // If we find a code block, apply syntax highlighting
             Event::Code(code) => {
                 let escaped = html_escape::encode_text(&code);
                 html_output.push_str(&format!("<code>{}</code>", escaped));
@@ -163,19 +162,29 @@ pub fn markdown_to_html(content: &str) -> String {
             },
             Event::End(TagEnd::CodeBlock) => {
                 in_code_block = false;
-                
-                let syntax = SYNTAX_SET.find_syntax_by_token(&code_lang)
-                    .or_else(|| SYNTAX_SET.find_syntax_by_extension(&code_lang))
-                    .unwrap_or_else(|| SYNTAX_SET.find_syntax_plain_text());
-                
-                // Apply syntax highlighting
-                let html = highlighted_html_for_string(&code_content, &SYNTAX_SET, syntax, theme)
-                    .unwrap_or_else(|_| html_escape::encode_text(&code_content).to_string());
-                
-                html_output.push_str(&format!("<pre><code class=\"language-{}\">{}</code></pre>", 
-                    code_lang,
-                    html
-                ));
+                let lang = code_lang.trim().to_ascii_lowercase();
+                match lang.as_str() {
+                    "mermaid" => {
+                        html_output.push_str(&format!("<div class=\"diagram diagram-mermaid\">{}</div>", html_escape::encode_safe(&code_content)));
+                    },
+                    "plantuml" => {
+                        html_output.push_str(&format!("<div class=\"diagram diagram-plantuml\">{}</div>", html_escape::encode_safe(&code_content)));
+                    },
+                    "graphviz" | "dot" => {
+                        html_output.push_str(&format!("<div class=\"diagram diagram-graphviz\">{}</div>", html_escape::encode_safe(&code_content)));
+                    },
+                    _ => {
+                        let syntax = SYNTAX_SET.find_syntax_by_token(&code_lang)
+                            .or_else(|| SYNTAX_SET.find_syntax_by_extension(&code_lang))
+                            .unwrap_or_else(|| SYNTAX_SET.find_syntax_plain_text());
+                        let html = highlighted_html_for_string(&code_content, &SYNTAX_SET, syntax, theme)
+                            .unwrap_or_else(|_| html_escape::encode_text(&code_content).to_string());
+                        html_output.push_str(&format!("<pre><code class=\"language-{}\">{}</code></pre>", 
+                            code_lang,
+                            html
+                        ));
+                    }
+                }
             },
             Event::Text(text) => {
                 if in_code_block {
@@ -184,7 +193,6 @@ pub fn markdown_to_html(content: &str) -> String {
                     html::push_html(&mut html_output, std::iter::once(Event::Text(text)));
                 }
             },
-            // For all other markdown elements, just convert to HTML
             _ => {
                 if !in_code_block {
                     html::push_html(&mut html_output, std::iter::once(event));
