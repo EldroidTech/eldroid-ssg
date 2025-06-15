@@ -202,3 +202,73 @@
   background-color: var(--md-link);
   color: var(--md-bg);
 }
+
+/* Diagram blocks (Mermaid, Graphviz, PlantUML, etc.) */
+.markdown-content .diagram {
+  display: block;
+  margin: 2em 0;
+  padding: 1.2em 1em;
+  background: var(--md-code-bg);
+  border: 1.5px solid var(--md-border);
+  border-radius: 10px;
+  overflow-x: auto;
+  box-shadow: 0 2px 8px 0 rgba(44,62,80,0.04);
+  transition: background 0.2s, border 0.2s;
+}
+
+.markdown-content .diagram svg {
+  width: 100%;
+  height: auto;
+  background: none;
+}
+
+.markdown-content .diagram-mermaid,
+.markdown-content .diagram-graphviz,
+.markdown-content .diagram-plantuml {
+  font-family: var(--font-mono, 'JetBrains Mono', 'Fira Code', 'Consolas', monospace);
+  font-size: 1em;
+  color: var(--md-text);
+  background: none;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+}
+
+.markdown-content .diagram-plantuml {
+  background: var(--md-blockquote-bg);
+  border-left: 4px solid var(--md-blockquote-border);
+  padding: 1em;
+  color: var(--md-text);
+  font-size: 0.98em;
+}
+
+/* Light theme diagram tweaks */
+:root {
+  --diagram-bg: #f7fafc;
+  --diagram-border: #e2e8f0;
+}
+
+/* Dark theme diagram tweaks */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --diagram-bg: #232b36;
+    --diagram-border: #374151;
+  }
+  .markdown-content .diagram {
+    background: var(--diagram-bg);
+    border-color: var(--diagram-border);
+    box-shadow: 0 2px 8px 0 rgba(30,41,59,0.12);
+  }
+  .markdown-content .diagram-plantuml {
+    background: #232b36;
+    border-left: 4px solid #4a5568;
+    color: #e2e8f0;
+  }
+}
+
+/* Responsive diagrams */
+.markdown-content .diagram,
+.markdown-content .diagram svg {
+  max-width: 100%;
+  min-width: 0;
+}
