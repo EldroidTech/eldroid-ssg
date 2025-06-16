@@ -8,6 +8,8 @@ use crate::macros::MacroProcessor;
 pub struct HtmlGenerator {
     variables: Option<Variables>,
     macro_processor: Option<MacroProcessor>,
+    dev_mode: bool,
+    ws_port: Option<u16>,
 }
 
 impl HtmlGenerator {
@@ -15,6 +17,8 @@ impl HtmlGenerator {
         Self {
             variables: None,
             macro_processor: None,
+            dev_mode: false,
+            ws_port: None,
         }
     }
 
@@ -25,6 +29,12 @@ impl HtmlGenerator {
 
     pub fn with_macros(mut self, processor: MacroProcessor) -> Self {
         self.macro_processor = Some(processor);
+        self
+    }
+
+    pub fn with_dev_mode(mut self, enabled: bool, ws_port: Option<u16>) -> Self {
+        self.dev_mode = enabled;
+        self.ws_port = ws_port;
         self
     }
 
@@ -41,7 +51,88 @@ impl HtmlGenerator {
             processed = processor.process(&processed);
         }
 
+        // Inject hot reload script in dev mode
+        if self.dev_mode {
+            if let Some(port) = self.ws_port {
+                processed = self.inject_hot_reload(&processed, port);
+            }
+        }
+
         processed
+    }
+
+    fn inject_hot_reload(&self, html: &str, ws_port: u16) -> String {
+        let hot_reload_script = format!(
+            r#"<script>
+            // Hot Reload Client
+            (function() {{
+                const ws = new WebSocket(`ws://localhost:{}/ws`);
+                
+                // Create error overlay
+                const errorOverlay = document.createElement('div');
+                errorOverlay.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    background: rgba(200, 0, 0, 0.85);
+                    color: white;
+                    padding: 20px;
+                    font-family: monospace;
+                    font-size: 14px;
+                    z-index: 9999;
+                    display: none;
+                    white-space: pre-wrap;
+                    max-height: 50vh;
+                    overflow-y: auto;
+                `;
+                document.body.appendChild(errorOverlay);
+
+                ws.onmessage = (event) => {{
+                    try {{
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.type === 'css') {{
+                            // Handle CSS hot reload
+                            const links = document.querySelectorAll('link[rel="stylesheet"]');
+                            links.forEach(link => {{
+                                if (link.href.includes(data.path)) {{
+                                    const newHref = link.href.split('?')[0] + '?t=' + Date.now();
+                                    link.href = newHref;
+                                }}
+                            }});
+                        }} else if (data.type === 'error') {{
+                            // Show error overlay
+                            errorOverlay.textContent = data.message;
+                            errorOverlay.style.display = 'block';
+                            setTimeout(() => {{
+                                errorOverlay.style.display = 'none';
+                            }}, 5000);
+                        }} else if (event.data === 'reload') {{
+                            window.location.reload();
+                        }}
+                    }} catch (e) {{
+                        if (event.data === 'reload') {{
+                            window.location.reload();
+                        }}
+                    }}
+                }};
+
+                ws.onclose = () => {{
+                    setTimeout(() => {{
+                        window.location.reload();
+                    }}, 1000);
+                }};
+            }})();
+            </script>"#,
+            ws_port
+        );
+
+        if let Some(body_end) = html.rfind("</body>") {
+            format!("{}{}{}", &html[..body_end], hot_reload_script, &html[body_end..])
+        } else {
+            format!("{}{}", html, hot_reload_script)
+        }
     }
 
     pub fn get_variables(&self) -> &Option<Variables> {
@@ -62,9 +153,19 @@ pub fn generate_html_with_seo(content: &str, site_seo: &SEOConfig, html_gen: &Ht
             title: site_seo.site_name.clone(),
             description: Some(site_seo.default_description.clone()),
             keywords: Some(site_seo.default_keywords.clone()),
-            url: "".to_string(),
+            url: Some("".to_string()),
             canonical_url: None,
+            path: "".to_string(),
+            image: None,
+            author: None,
+            published_date: None,
+            last_modified: None,
+            category: None,
+            tags: None,
+            schema_type: None,
             structured_data: None,
+            change_frequency: None,
+            priority: None,
         };
         update_seo_tags(&html, &default_page_seo, site_seo, Path::new(""))
     }
@@ -144,7 +245,7 @@ pub fn update_seo_tags(html_str: &str, page_seo: &PageSEO, site_seo: &SEOConfig,
             ("og:title".to_string(), page_seo.title.clone()),
             ("og:description".to_string(), page_seo.description.clone().unwrap_or_else(|| site_seo.default_description.clone())),
             ("og:type".to_string(), "website".to_string()),
-            ("og:url".to_string(), page_seo.url.clone()),
+            ("og:url".to_string(), page_seo.url.clone().unwrap_or_default()),
             ("og:site_name".to_string(), site_seo.site_name.clone()),
         ];
 

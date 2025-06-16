@@ -33,6 +33,8 @@ pub enum ChangeType {
     Create,
     Modify,
     Delete,
+    CssChange,  // Special handling for CSS files
+    Error(String),  // For tracking build/processing errors
 }
 
 pub struct DevServer {
@@ -105,9 +107,24 @@ impl DevServer {
             .map(|ws: warp::ws::Ws, mut rx: broadcast::Receiver<FileChange>| {
                 ws.on_upgrade(move |socket| async move {
                     let (mut tx, _) = socket.split();
-                    while rx.recv().await.is_ok() {
-                        // Send reload message to browser
-                        if let Err(e) = tx.send(warp::ws::Message::text("reload")).await {
+                    while let Ok(change) = rx.recv().await {
+                        let msg = match change.event_type {
+                            ChangeType::CssChange => {
+                                // For CSS changes, send a special message to reload only CSS
+                                format!("{{\"type\":\"css\",\"path\":\"{}\"}}", 
+                                    change.path.display())
+                            },
+                            ChangeType::Error(err) => {
+                                // For errors, send error details to show in overlay
+                                format!("{{\"type\":\"error\",\"message\":\"{}\"}}", err)
+                            },
+                            _ => {
+                                // For other changes, do a full page reload
+                                "reload".to_string()
+                            }
+                        };
+                        
+                        if let Err(e) = tx.send(warp::ws::Message::text(msg)).await {
                             error!("WebSocket send error: {}", e);
                             break;
                         }
@@ -149,7 +166,14 @@ impl DevServer {
 
                 let change_type = match event.kind {
                     notify::EventKind::Create(_) => ChangeType::Create,
-                    notify::EventKind::Modify(_) => ChangeType::Modify,
+                    notify::EventKind::Modify(_) => {
+                        // Special handling for CSS changes
+                        if event.paths.iter().any(|p| p.extension().map_or(false, |ext| ext == "css")) {
+                            ChangeType::CssChange
+                        } else {
+                            ChangeType::Modify
+                        }
+                    },
                     notify::EventKind::Remove(_) => ChangeType::Delete,
                     _ => return,
                 };

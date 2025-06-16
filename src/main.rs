@@ -140,6 +140,7 @@ async fn main() {
         HtmlGenerator::new()
             .with_variables(variables.unwrap_or_default())
             .with_macros(macro_processor)
+            .with_dev_mode(args.watch, args.ws_port)
     );
 
     // Start development server if watch mode is enabled

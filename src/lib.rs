@@ -10,13 +10,18 @@ pub mod watcher;
 pub mod markdown;
 pub mod template_gen;
 pub mod troubleshooting;
+pub mod error_handler;
 
 // Re-export commonly used types
 pub use config::{CliArgs, BuildConfig};
 pub use analyzer::{Analyzer, SecurityReport, PerformanceReport};
 pub use html::{HtmlGenerator, generate_html_with_seo}; 
 pub use minify::Minifier;
-pub use seo::{SEOConfig, PageSEO, load_seo_config};
+pub mod seo_types;
+pub mod seo_html;
+pub use seo::{SEOConfig, PageSEO, load_seo_config, Organization, SocialMedia, StructuredData};
+pub use seo_types::JsonLd;
+pub use seo_html::{generate_meta_tags, inject_meta_tags};
 pub use seo_gen::{generate_sitemap, generate_rss, generate_robots_txt};
 pub use variables::{Variables, load_variables};
 pub use macros::MacroProcessor;
