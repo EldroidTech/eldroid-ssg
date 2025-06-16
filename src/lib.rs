@@ -9,6 +9,7 @@ pub mod macros;
 pub mod watcher;
 pub mod markdown;
 pub mod template_gen;
+pub mod troubleshooting;
 
 // Re-export commonly used types
 pub use config::{CliArgs, BuildConfig};
@@ -21,3 +22,4 @@ pub use variables::{Variables, load_variables};
 pub use macros::MacroProcessor;
 pub use watcher::DevServer;
 pub use markdown::*;
+pub use troubleshooting::Troubleshooter;

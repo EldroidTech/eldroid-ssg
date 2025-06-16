@@ -18,6 +18,7 @@ use eldroid_ssg::{
     variables::load_variables,
     macros::MacroProcessor,
     watcher::DevServer,
+    troubleshooting::Troubleshooter,
     BlogPost,
     BlogProcessor,
 };
@@ -41,8 +42,23 @@ fn walk_dir_recursive(dir: &Path) -> Vec<std::path::PathBuf> {
 #[tokio::main]
 async fn main() {
     env_logger::init();
+    
     // Parse command line arguments
     let args = CliArgs::parse();
+    let config = BuildConfig::from(&args);
+
+    // Initialize troubleshooter
+    let cache_dir = format!("{}/cache", args.output_dir);
+    let troubleshooter = Troubleshooter::new(
+        cache_dir,
+        args.output_dir.clone(),
+    );
+
+    // Handle troubleshooting commands first
+    if let Err(e) = handle_troubleshooting(&args, &troubleshooter) {
+        error!("Troubleshooting error: {}", e);
+        std::process::exit(1);
+    }
 
     // Handle subcommands
     if let Some(cmd) = &args.command {
@@ -63,7 +79,6 @@ async fn main() {
         }
     }
 
-    let config = BuildConfig::from(&args);
     let perf_dir = format!("{}/performance", args.output_dir);
 
     // Initialize components
@@ -156,6 +171,45 @@ async fn main() {
             std::process::exit(1);
         }
     }
+}
+
+fn handle_troubleshooting(args: &CliArgs, troubleshooter: &Troubleshooter) -> Result<()> {
+    if args.clear_cache {
+        troubleshooter.clear_cache()?;
+    }
+
+    if args.check_watchers {
+        troubleshooter.check_watchers()?;
+    }
+
+    if args.check_image_processor {
+        troubleshooter.check_image_processor()?;
+    }
+
+    if args.verify_assets {
+        troubleshooter.verify_assets(&args.input_dir)?;
+    }
+
+    if args.analyze_bundles {
+        troubleshooter.analyze_bundles()?;
+    }
+
+    if args.lint {
+        troubleshooter.lint(&args.input_dir)?;
+    }
+
+    if args.memory_profile {
+        // Wrap the build process in memory profiling
+        troubleshooter.memory_profile(|| {
+            process_files(args, &BuildConfig::from(args), &Arc::new(
+                HtmlGenerator::new()
+                    .with_variables(load_variables(&args.variables_config).unwrap_or_default())
+                    .with_macros(MacroProcessor::new())
+            ), &None, &None, &None, &format!("{}/performance", args.output_dir))
+        })?;
+    }
+
+    Ok(())
 }
 
 fn process_files(
