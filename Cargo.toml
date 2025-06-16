@@ -33,7 +33,7 @@ html-escape = "0.2.13"
 thiserror = "2.0.12"
 html2text = "0.15.1"
 walkdir = "2.4.0"  # For directory traversal
-image = { version = "0.24.8", features = ["jpeg", "png", "webp"] }   # For image analysis
+image = { version = "0.25.6", features = ["jpeg", "png", "webp"] }   # For image analysis
 sys-info = "0.9.1" # For system information
 
 [dev-dependencies]
